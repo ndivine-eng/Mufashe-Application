@@ -1,0 +1,77 @@
+#########################
+# Dependencies
+#########################
+node_modules/
+backend/node_modules/
+
+#########################
+# Expo / React Native
+#########################
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.android/
+.ios/
+
+#########################
+# Metro
+#########################
+.metro-health-check*
+
+#########################
+# Logs
+#########################
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+#########################
+# macOS
+#########################
+.DS_Store
+*.pem
+
+#########################
+# Environment Files (VERY IMPORTANT)
+#########################
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+#########################
+# Backend Storage (DO NOT PUSH DB FILES)
+#########################
+backend/storage/
+backend/data/
+**/*.sqlite
+**/*.sqlite3
+
+#########################
+# Native generated
+#########################
+/ios
+/android
+
+#########################
+# TypeScript
+#########################
+*.tsbuildinfo
+
+# env
+.env
+.env.*
+**/.env
+**/.env.*
+
+# chroma/db
+**/storage/
+**/chroma/
+**/*.sqlite3
+
+# backend storage / chroma db
+backend/storage/
+**/storage/
+**/chroma/
+**/*.sqlite3
