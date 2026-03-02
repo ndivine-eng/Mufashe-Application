@@ -45,6 +45,14 @@ type UserRow = {
   createdAt?: string;
 };
 
+type QuestionRow = {
+  _id?: string;
+  question?: string;
+  status?: string;
+  category?: string | null;
+  createdAt?: string;
+};
+
 // ✅ You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -114,6 +122,9 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // ✅ questions stats (optional)
+  const [pendingQuestions, setPendingQuestions] = useState(0);
+
   // per-document processing state
   const [processingIds, setProcessingIds] = useState<Record<string, boolean>>({});
   const [processingAll, setProcessingAll] = useState(false);
@@ -155,22 +166,32 @@ export default function AdminDashboard() {
 
       setDisplayName(pickDisplayName(user));
 
-      // ✅ your working endpoint: GET /api/documents
-      // Since BASE_URL already contains /api, path becomes "/documents"
+      //  docs
       const docsRes = await apiRequest("GET", "/documents");
       setDocs(docsRes?.items || []);
 
-      // Optional: users if you have it
+      //  users (optional)
       try {
         const usersRes = await apiRequest("GET", "/users");
         setUsers(usersRes?.items || usersRes?.users || []);
       } catch {
         setUsers([]);
       }
+
+      //  pending questions count (optional)
+      // Requires backend: GET /api/questions?status=PENDING (admin)
+      try {
+        const qRes = await apiRequest("GET", "/questions?status=PENDING");
+        const items: QuestionRow[] = qRes?.items || [];
+        setPendingQuestions(items.length);
+      } catch {
+        setPendingQuestions(0);
+      }
     } catch (e: any) {
       setErrorMsg(e?.message || "Failed to load admin data");
       setDocs([]);
       setUsers([]);
+      setPendingQuestions(0);
     } finally {
       setLoading(false);
     }
@@ -197,7 +218,7 @@ export default function AdminDashboard() {
     router.replace("/(auth)/login");
   }, []);
 
-  // ✅ Process one doc: POST /api/documents/:id/process
+  //  Process one doc: POST /api/documents/:id/process
   const processOne = useCallback(
     async (docId: string, title?: string) => {
       try {
@@ -205,10 +226,7 @@ export default function AdminDashboard() {
 
         const res = await apiRequest("POST", `/documents/${docId}/process`);
 
-        Alert.alert(
-          "Processed ✅",
-          `${title || "Document"} is now ${res?.document?.status || "READY"}`
-        );
+        Alert.alert("Processed ✅", `${title || "Document"} is now ${res?.document?.status || "READY"}`);
 
         await protectAndLoad();
       } catch (e: any) {
@@ -233,46 +251,39 @@ export default function AdminDashboard() {
         return;
       }
 
-      Alert.alert(
-        "Process All",
-        `This will process ${candidates.length} document(s). Continue?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Yes",
-            style: "default",
-            onPress: async () => {
-              setProcessingAll(true);
+      Alert.alert("Process All", `This will process ${candidates.length} document(s). Continue?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes",
+          style: "default",
+          onPress: async () => {
+            setProcessingAll(true);
 
-              let ok = 0;
-              let fail = 0;
+            let ok = 0;
+            let fail = 0;
 
-              // sequential to avoid hammering server/OpenAI
-              for (const d of candidates) {
-                try {
-                  const id = String(d._id);
-                  setProcessingIds((prev) => ({ ...prev, [id]: true }));
-                  await apiRequest("POST", `/documents/${id}/process`);
-                  ok++;
-                } catch {
-                  fail++;
-                } finally {
-                  const id = String(d._id);
-                  setProcessingIds((prev) => ({ ...prev, [id]: false }));
-                }
+            // sequential to avoid hammering server/OpenAI
+            for (const d of candidates) {
+              try {
+                const id = String(d._id);
+                setProcessingIds((prev) => ({ ...prev, [id]: true }));
+                await apiRequest("POST", `/documents/${id}/process`);
+                ok++;
+              } catch {
+                fail++;
+              } finally {
+                const id = String(d._id);
+                setProcessingIds((prev) => ({ ...prev, [id]: false }));
               }
+            }
 
-              setProcessingAll(false);
-              await protectAndLoad();
+            setProcessingAll(false);
+            await protectAndLoad();
 
-              Alert.alert(
-                "Process All complete ✅",
-                `Success: ${ok}\nFailed: ${fail}`
-              );
-            },
+            Alert.alert("Process All complete ✅", `Success: ${ok}\nFailed: ${fail}`);
           },
-        ]
-      );
+        },
+      ]);
     } catch (e: any) {
       setProcessingAll(false);
       Alert.alert("Process all failed ❌", e?.message || "Failed");
@@ -354,14 +365,17 @@ export default function AdminDashboard() {
             <Text style={styles.actionMeta}>PDF → Extract → Index</Text>
           </TouchableOpacity>
 
+          {/* ✅ UPDATED: now opens the real review screen */}
           <TouchableOpacity
             style={[styles.actionCard, { backgroundColor: "#ECFDF3" }]}
             activeOpacity={0.9}
-            onPress={() => Alert.alert("Coming soon", "Review questions feature next.")}
+            onPress={() => router.push("/(user)/admin-review-questions")}
           >
             <Ionicons name="chatbubbles-outline" size={20} color="#059669" />
             <Text style={styles.actionTitle}>Review questions</Text>
-            <Text style={styles.actionMeta}>Moderation + quality</Text>
+            <Text style={styles.actionMeta}>
+              Moderation + quality{pendingQuestions > 0 ? ` • ${pendingQuestions} pending` : ""}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -374,15 +388,23 @@ export default function AdminDashboard() {
             <Text style={styles.statValue}>{stats.totalDocs}</Text>
             <Text style={styles.statLabel}>Documents</Text>
           </View>
+
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.totalUsers}</Text>
             <Text style={styles.statLabel}>Users</Text>
+          </View>
+
+          {/* ✅ Optional: pending questions */}
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{pendingQuestions}</Text>
+            <Text style={styles.statLabel}>PENDING QUESTIONS</Text>
           </View>
 
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.ready}</Text>
             <Text style={styles.statLabel}>READY</Text>
           </View>
+
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.processing}</Text>
             <Text style={styles.statLabel}>PROCESSING</Text>
@@ -392,6 +414,7 @@ export default function AdminDashboard() {
             <Text style={styles.statValue}>{stats.failed}</Text>
             <Text style={styles.statLabel}>FAILED</Text>
           </View>
+
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{stats.uploaded}</Text>
             <Text style={styles.statLabel}>UPLOADED</Text>
@@ -478,9 +501,26 @@ const styles = StyleSheet.create({
   subText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
 
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-  errorCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 16, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA", marginBottom: 12 },
+  errorCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    marginBottom: 12,
+  },
   errorText: { color: "#7F1D1D", fontWeight: "800", flex: 1 },
 
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
@@ -498,12 +538,27 @@ const styles = StyleSheet.create({
   processAllText: { color: "#fff", fontWeight: "900", fontSize: 12 },
 
   actionGrid: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 12 },
-  actionCard: { width: "48%", borderRadius: 18, padding: 12, minHeight: 104, borderWidth: 1, borderColor: "#E5E7EB", justifyContent: "center" },
+  actionCard: {
+    width: "48%",
+    borderRadius: 18,
+    padding: 12,
+    minHeight: 104,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    justifyContent: "center",
+  },
   actionTitle: { marginTop: 10, fontSize: 13, fontWeight: "900", color: "#111827" },
   actionMeta: { marginTop: 4, fontSize: 11, color: "#6B7280", fontWeight: "800" },
 
   statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  statCard: { width: "48%", borderRadius: 18, padding: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  statCard: {
+    width: "48%",
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#fff",
+  },
   statValue: { fontSize: 18, fontWeight: "900", color: "#111827" },
   statLabel: { marginTop: 4, fontSize: 11, color: "#6B7280", fontWeight: "800" },
 
@@ -533,10 +588,24 @@ const styles = StyleSheet.create({
   },
   processBtnText: { color: "#fff", fontWeight: "900", fontSize: 12 },
 
-  emptyCard: { marginTop: 6, borderRadius: 18, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff", padding: 14, gap: 6 },
+  emptyCard: {
+    marginTop: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#fff",
+    padding: 14,
+    gap: 6,
+  },
   emptyTitle: { fontWeight: "900", color: "#111827" },
   emptyText: { color: "#6B7280", fontWeight: "700" },
 
-  primarySmall: { marginTop: 10, backgroundColor: "#0F3D63", paddingVertical: 10, borderRadius: 14, alignItems: "center" },
+  primarySmall: {
+    marginTop: 10,
+    backgroundColor: "#0F3D63",
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
+  },
   primarySmallText: { color: "#fff", fontWeight: "900" },
 });

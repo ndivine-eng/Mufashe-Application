@@ -8,6 +8,8 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -15,35 +17,45 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import BottomNav from "../../components/BottomNav";
 
-/* =========================
-   DATA (clean + icon-first)
-========================= */
-
 const categories = [
   { key: "family", title: "Family", icon: "people-outline", bg: "#E8F0FF" },
   { key: "land", title: "Land", icon: "map-outline", bg: "#E9FBEF" },
   { key: "labor", title: "Labor", icon: "briefcase-outline", bg: "#ECFDF3" },
   { key: "civil", title: "Business", icon: "shield-checkmark-outline", bg: "#EFF6FF" },
-];
+] as const;
 
-// Sample (replace with backend later)
-const recent = [
-  { id: "1", title: "Land transfer", meta: "Yesterday" },
-  { id: "2", title: "Contract end", meta: "Oct 24" },
-];
-
-/* =========================
-   USER TYPE
-========================= */
 type StoredUser = {
   id?: string;
+  _id?: string;
   name?: string;
   fullName?: string;
   username?: string;
   email?: string | null;
   phone?: string | null;
   emailOrPhone?: string;
+  role?: string;
 };
+
+type RecentQuestion = {
+  _id: string;
+  question: string;
+  category?: string | null;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// ✅ You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
+
+// cache key
+const RECENT_CACHE_KEY = "@mufashe_recent_questions_cache_v1";
+
+function joinUrl(base: string, path: string) {
+  const b = base.replace(/\/+$/, "");
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${b}${p}`;
+}
 
 function pickDisplayName(u: StoredUser | null) {
   if (!u) return "Guest";
@@ -55,9 +67,135 @@ function pickDisplayName(u: StoredUser | null) {
   return "User";
 }
 
+function prettyMeta(dateStr?: string) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  if (sameDay) return "Today";
+
+  const y = new Date(now.getTime() - oneDay);
+  const isYesterday =
+    d.getDate() === y.getDate() &&
+    d.getMonth() === y.getMonth() &&
+    d.getFullYear() === y.getFullYear();
+  if (isYesterday) return "Yesterday";
+
+  return d.toLocaleDateString();
+}
+
+function normStatus(s?: string) {
+  return String(s || "PENDING").toUpperCase();
+}
+
+function statusChipStyle(status?: RecentQuestion["status"]) {
+  const s = normStatus(status);
+  if (s === "APPROVED") return { bg: "#ECFDF3", border: "#A7F3D0", text: "#065F46" };
+  if (s === "REJECTED") return { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B" };
+  // PENDING default
+  return { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" };
+}
+
+function safeCategoryLabel(cat?: string | null) {
+  const c = String(cat || "OTHER").toUpperCase();
+  return c;
+}
+
+async function apiGet(path: string) {
+  const token = await AsyncStorage.getItem("token");
+  if (!token) throw new Error("Missing token");
+
+  const url = joinUrl(BASE_URL, path);
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+
+  // ✅ If token expired, logout cleanly
+  if (res.status === 401 || res.status === 403) {
+    await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("user");
+    throw new Error("Session expired. Please login again.");
+  }
+
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text };
+  }
+
+  if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
+  return data;
+}
+
 export default function Dashboard() {
   const [displayName, setDisplayName] = useState("...");
+
   const [loadingUser, setLoadingUser] = useState(true);
+
+  const [recent, setRecent] = useState<RecentQuestion[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [recentError, setRecentError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const loadCachedRecent = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(RECENT_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed?.items)) {
+        setRecent(parsed.items);
+        if (parsed?.ts) setLastUpdated(new Date(parsed.ts).toLocaleString());
+      }
+    } catch {
+      // ignore cache errors
+    }
+  }, []);
+
+  const saveRecentCache = useCallback(async (items: RecentQuestion[]) => {
+    try {
+      const payload = { items, ts: Date.now() };
+      await AsyncStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(payload));
+      setLastUpdated(new Date(payload.ts).toLocaleString());
+    } catch {
+      // ignore cache write errors
+    }
+  }, []);
+
+  const loadRecent = useCallback(
+    async (showSpinner = true) => {
+      try {
+        setRecentError(null);
+        if (showSpinner) setLoadingRecent(true);
+
+        const res = await apiGet("/questions/recent?limit=5");
+        const items: RecentQuestion[] = res?.items || [];
+
+        setRecent(items);
+        await saveRecentCache(items);
+      } catch (e: any) {
+        const msg = e?.message || "Failed to load recent questions";
+        setRecentError(msg);
+
+        // if session expired -> go login
+        if (String(msg).toLowerCase().includes("login")) {
+          router.replace("/(auth)/login");
+          return;
+        }
+      } finally {
+        if (showSpinner) setLoadingRecent(false);
+      }
+    },
+    [saveRecentCache]
+  );
 
   const loadAndProtect = useCallback(async () => {
     try {
@@ -79,18 +217,33 @@ export default function Dashboard() {
       }
 
       setDisplayName(pickDisplayName(user));
+
+      // ✅ show cached recent instantly (fast UX)
+      await loadCachedRecent();
+
+      // ✅ then fetch fresh
+      await loadRecent(true);
     } catch {
       router.replace("/(auth)/login");
     } finally {
       setLoadingUser(false);
     }
-  }, []);
+  }, [loadCachedRecent, loadRecent]);
 
   useFocusEffect(
     useCallback(() => {
       loadAndProtect();
     }, [loadAndProtect])
   );
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await loadRecent(false);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadRecent]);
 
   if (loadingUser) {
     return (
@@ -103,7 +256,11 @@ export default function Dashboard() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Header */}
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
@@ -124,7 +281,7 @@ export default function Dashboard() {
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.iconBtn}
-              onPress={() => alert("Notifications (later)")}
+              onPress={() => Alert.alert("Notifications", "Coming next (we’ll connect it).")}
               activeOpacity={0.85}
             >
               <Ionicons name="notifications-outline" size={18} color="#111827" />
@@ -140,12 +297,8 @@ export default function Dashboard() {
           </View>
         </View>
 
-        {/* Search (compact) */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => router.push("/(user)/consult")}
-          style={styles.searchWrap}
-        >
+        {/* Search */}
+        <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(user)/consult")} style={styles.searchWrap}>
           <Ionicons name="search-outline" size={18} color="#6B7280" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
@@ -157,6 +310,24 @@ export default function Dashboard() {
             <Ionicons name="mic-outline" size={18} color="#2563EB" />
           </View>
         </TouchableOpacity>
+
+        {/* Quick Actions (new, but small) */}
+        <View style={styles.quickRow}>
+          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/consult")} activeOpacity={0.9}>
+            <Ionicons name="help-circle-outline" size={16} color="#0F3D63" />
+            <Text style={styles.quickText}>Ask</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/history")} activeOpacity={0.9}>
+            <Ionicons name="time-outline" size={16} color="#0F3D63" />
+            <Text style={styles.quickText}>History</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/library")} activeOpacity={0.9}>
+            <Ionicons name="library-outline" size={16} color="#0F3D63" />
+            <Text style={styles.quickText}>Library</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Categories */}
         <View style={styles.sectionRow}>
@@ -187,33 +358,81 @@ export default function Dashboard() {
           ))}
         </View>
 
-        {/* Recent (minimal rows) */}
+        {/* Recent */}
         <View style={[styles.sectionRow, { marginTop: 16 }]}>
-          <Text style={styles.sectionTitle}>Recent</Text>
-          <TouchableOpacity onPress={() => router.push("/(user)/history")} activeOpacity={0.8}>
-            <Ionicons name="time-outline" size={18} color="#2563EB" />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={styles.sectionTitle}>Recent</Text>
+            {lastUpdated ? <Text style={styles.mutedTiny}>• {lastUpdated}</Text> : null}
+          </View>
+
+          <TouchableOpacity onPress={() => loadRecent(true)} activeOpacity={0.8}>
+            <Ionicons name="refresh-outline" size={18} color="#2563EB" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.recentList}>
-          {recent.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.recentItem}
-              activeOpacity={0.9}
-              onPress={() => router.push("/(user)/history")}
-            >
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#111827" />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.recentTitle}>{r.title}</Text>
-              </View>
-              <Text style={styles.recentMeta}>{r.meta}</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+        {recentError ? (
+          <View style={styles.errorCard}>
+            <Ionicons name="alert-circle-outline" size={18} color="#B91C1C" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorTitle}>Could not load recent</Text>
+              <Text style={styles.errorText}>{recentError}</Text>
+            </View>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => loadRecent(true)} activeOpacity={0.9}>
+              <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
-          ))}
+          </View>
+        ) : null}
+
+        <View style={styles.recentList}>
+          {loadingRecent ? (
+            <View style={[styles.recentItem, { justifyContent: "center" }]}>
+              <ActivityIndicator />
+              <Text style={{ marginLeft: 10, color: "#6B7280", fontWeight: "800" }}>Loading recent…</Text>
+            </View>
+          ) : recent.length === 0 ? (
+            <View style={[styles.recentItem, { justifyContent: "center" }]}>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#6B7280" />
+              <Text style={{ marginLeft: 10, color: "#6B7280", fontWeight: "800" }}>
+                No recent questions yet
+              </Text>
+            </View>
+          ) : (
+            recent.map((r) => {
+              const chip = statusChipStyle(r.status);
+              return (
+                <TouchableOpacity
+                  key={r._id}
+                  style={styles.recentItem}
+                  activeOpacity={0.9}
+                  onPress={() => router.push("/(user)/history")}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color="#111827" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.recentTitle} numberOfLines={1}>
+                      {r.question}
+                    </Text>
+
+                    {/* category + status chips */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                      <View style={styles.catChip}>
+                        <Text style={styles.catChipText}>{safeCategoryLabel(r.category)}</Text>
+                      </View>
+
+                      <View style={[styles.statusChip, { backgroundColor: chip.bg, borderColor: chip.border }]}>
+                        <Text style={[styles.statusChipText, { color: chip.text }]}>{normStatus(r.status)}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Text style={styles.recentMeta}>{prettyMeta(r.updatedAt || r.createdAt)}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
-        {/* Emergency (clean card) */}
+        {/* Emergency */}
         <View style={styles.helpCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
             <View style={styles.helpIcon}>
@@ -227,7 +446,7 @@ export default function Dashboard() {
 
           <TouchableOpacity
             style={styles.callBtn}
-            onPress={() => alert("Call (later: Linking to phone)")}
+            onPress={() => Alert.alert("Call", "Add the real Legal Aid phone number here when you’re ready.")}
             activeOpacity={0.9}
           >
             <Ionicons name="call-outline" size={18} color="#fff" />
@@ -242,10 +461,6 @@ export default function Dashboard() {
   );
 }
 
-/* =========================
-   STYLES (clean + spacing)
-========================= */
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#ffffff" },
   container: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 },
@@ -253,12 +468,7 @@ const styles = StyleSheet.create({
 
   loadingText: { marginTop: 10, color: "#6B7280", fontWeight: "800" },
 
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   appIconBox: {
     width: 38,
@@ -292,7 +502,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: "#fff",
-    marginBottom: 18,
+    marginBottom: 12,
   },
   searchInput: { flex: 1, fontSize: 13, color: "#111827" },
   micBtn: {
@@ -304,20 +514,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  sectionRow: {
+  quickRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  quickBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingVertical: 12,
   },
-  sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
+  quickText: { fontWeight: "900", color: "#111827", fontSize: 12 },
 
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
-  },
+  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
+  mutedTiny: { fontSize: 10, color: "#9CA3AF", fontWeight: "800" },
+
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
   catCard: {
     width: "48%",
     borderRadius: 18,
@@ -338,6 +554,27 @@ const styles = StyleSheet.create({
   },
   catTitle: { fontSize: 13, fontWeight: "900", color: "#111827" },
 
+  errorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    marginBottom: 10,
+  },
+  errorTitle: { color: "#7F1D1D", fontWeight: "900" },
+  errorText: { color: "#7F1D1D", fontWeight: "700", marginTop: 2 },
+  retryBtn: {
+    backgroundColor: "#B91C1C",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  retryText: { color: "#fff", fontWeight: "900", fontSize: 12 },
+
   recentList: { gap: 10 },
   recentItem: {
     flexDirection: "row",
@@ -350,6 +587,24 @@ const styles = StyleSheet.create({
   },
   recentTitle: { fontSize: 13, fontWeight: "800", color: "#111827" },
   recentMeta: { fontSize: 11, color: "#6B7280", marginRight: 8 },
+
+  catChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  catChipText: { fontSize: 10, fontWeight: "900", color: "#374151" },
+
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  statusChipText: { fontSize: 10, fontWeight: "900" },
 
   helpCard: {
     marginTop: 14,

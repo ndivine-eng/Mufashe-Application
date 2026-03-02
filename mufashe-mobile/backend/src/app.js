@@ -7,6 +7,7 @@ const resourcesRoutes = require("./routes/resources.routes");
 const documentRoutes = require("./routes/document.routes");
 const usersRoutes = require("./routes/users.routes");
 const qaRoutes = require("./routes/qa.routes");
+const questionsRoutes = require("./routes/questions.routes");
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use("/api/resources", resourcesRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/qa", qaRoutes);
+app.use("/api/questions", questionsRoutes);
 
 
 // ping (keep BEFORE export)

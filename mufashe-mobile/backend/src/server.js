@@ -26,6 +26,8 @@ app.use("/api/documents", require("./routes/document.routes"));
 app.use("/api/search", require("./routes/search.routes"));
 app.use("/api/users", require("./routes/users.routes"));
 app.use("/api/qa", require("./routes/qa.routes"));
+app.use("/api/questions", require("./routes/questions.routes"));
+
 
 // ==========================================
 
