@@ -42,7 +42,7 @@ exports.ask = async (req, res) => {
       category: category ? String(category).trim().toUpperCase() : null,
       documentId: documentId || null,
       sources,
-      // status defaults to PENDING
+      status: "APPROVED", // auto-approve since it's from the system, not user-generated
     });
 
     return res.json({

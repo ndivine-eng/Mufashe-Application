@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,13 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import BottomNav from "../../components/BottomNav";
-
-const categories = [
-  { key: "family", title: "Family", icon: "people-outline", bg: "#E8F0FF" },
-  { key: "land", title: "Land", icon: "map-outline", bg: "#E9FBEF" },
-  { key: "labor", title: "Labor", icon: "briefcase-outline", bg: "#ECFDF3" },
-  { key: "civil", title: "Business", icon: "shield-checkmark-outline", bg: "#EFF6FF" },
-] as const;
+import { useAppSettings } from "../lib/appSettings";
+import { useT } from "../lib/i18n";
 
 type StoredUser = {
   id?: string;
@@ -45,10 +40,7 @@ type RecentQuestion = {
   updatedAt?: string;
 };
 
-// ✅ You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
-
-// cache key
 const RECENT_CACHE_KEY = "@mufashe_recent_questions_cache_v1";
 
 function joinUrl(base: string, path: string) {
@@ -67,43 +59,19 @@ function pickDisplayName(u: StoredUser | null) {
   return "User";
 }
 
-function prettyMeta(dateStr?: string) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  const now = new Date();
-  const oneDay = 24 * 60 * 60 * 1000;
-
-  const sameDay =
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear();
-  if (sameDay) return "Today";
-
-  const y = new Date(now.getTime() - oneDay);
-  const isYesterday =
-    d.getDate() === y.getDate() &&
-    d.getMonth() === y.getMonth() &&
-    d.getFullYear() === y.getFullYear();
-  if (isYesterday) return "Yesterday";
-
-  return d.toLocaleDateString();
-}
-
 function normStatus(s?: string) {
-  return String(s || "PENDING").toUpperCase();
+  return String(s || "APPROVED").toUpperCase();
 }
 
 function statusChipStyle(status?: RecentQuestion["status"]) {
   const s = normStatus(status);
   if (s === "APPROVED") return { bg: "#ECFDF3", border: "#A7F3D0", text: "#065F46" };
   if (s === "REJECTED") return { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B" };
-  // PENDING default
   return { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" };
 }
 
 function safeCategoryLabel(cat?: string | null) {
-  const c = String(cat || "OTHER").toUpperCase();
-  return c;
+  return String(cat || "OTHER").toUpperCase();
 }
 
 async function apiGet(path: string) {
@@ -111,12 +79,10 @@ async function apiGet(path: string) {
   if (!token) throw new Error("Missing token");
 
   const url = joinUrl(BASE_URL, path);
-
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
 
-  // ✅ If token expired, logout cleanly
   if (res.status === 401 || res.status === 403) {
     await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem("user");
@@ -136,8 +102,21 @@ async function apiGet(path: string) {
 }
 
 export default function Dashboard() {
-  const [displayName, setDisplayName] = useState("...");
+  const { theme, scale } = useAppSettings();
+  const t = useT();
+  const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
 
+  const categories = useMemo(
+    () => [
+      { key: "family", title: t("family"), icon: "people-outline", bg: theme.muted },
+      { key: "land", title: t("land"), icon: "map-outline", bg: theme.muted },
+      { key: "labor", title: t("labor"), icon: "briefcase-outline", bg: theme.muted },
+      { key: "civil", title: t("business"), icon: "shield-checkmark-outline", bg: theme.muted },
+    ],
+    [t, theme.muted]
+  );
+
+  const [displayName, setDisplayName] = useState("...");
   const [loadingUser, setLoadingUser] = useState(true);
 
   const [recent, setRecent] = useState<RecentQuestion[]>([]);
@@ -145,6 +124,29 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [recentError, setRecentError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const prettyMeta = useCallback(
+    (dateStr?: string) => {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      const now = new Date();
+      const oneDay = 24 * 60 * 60 * 1000;
+
+      const sameDay =
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear();
+      if (sameDay) return t("today");
+
+      const y = new Date(now.getTime() - oneDay);
+      const isYesterday =
+        d.getDate() === y.getDate() && d.getMonth() === y.getMonth() && d.getFullYear() === y.getFullYear();
+      if (isYesterday) return t("yesterday");
+
+      return d.toLocaleDateString();
+    },
+    [t]
+  );
 
   const loadCachedRecent = useCallback(async () => {
     try {
@@ -155,9 +157,7 @@ export default function Dashboard() {
         setRecent(parsed.items);
         if (parsed?.ts) setLastUpdated(new Date(parsed.ts).toLocaleString());
       }
-    } catch {
-      // ignore cache errors
-    }
+    } catch {}
   }, []);
 
   const saveRecentCache = useCallback(async (items: RecentQuestion[]) => {
@@ -165,9 +165,7 @@ export default function Dashboard() {
       const payload = { items, ts: Date.now() };
       await AsyncStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(payload));
       setLastUpdated(new Date(payload.ts).toLocaleString());
-    } catch {
-      // ignore cache write errors
-    }
+    } catch {}
   }, []);
 
   const loadRecent = useCallback(
@@ -178,14 +176,11 @@ export default function Dashboard() {
 
         const res = await apiGet("/questions/recent?limit=5");
         const items: RecentQuestion[] = res?.items || [];
-
         setRecent(items);
         await saveRecentCache(items);
       } catch (e: any) {
         const msg = e?.message || "Failed to load recent questions";
         setRecentError(msg);
-
-        // if session expired -> go login
         if (String(msg).toLowerCase().includes("login")) {
           router.replace("/(auth)/login");
           return;
@@ -217,11 +212,7 @@ export default function Dashboard() {
       }
 
       setDisplayName(pickDisplayName(user));
-
-      // ✅ show cached recent instantly (fast UX)
       await loadCachedRecent();
-
-      // ✅ then fetch fresh
       await loadRecent(true);
     } catch {
       router.replace("/(auth)/login");
@@ -249,7 +240,7 @@ export default function Dashboard() {
     return (
       <View style={[styles.screen, styles.center]}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading…</Text>
+        <Text style={styles.loadingText}>{t("loading")}</Text>
       </View>
     );
   }
@@ -265,75 +256,62 @@ export default function Dashboard() {
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <View style={styles.appIconBox}>
-              <Image
-                source={require("../../assets/images/splash-icon.png")}
-                style={styles.appIcon}
-                resizeMode="contain"
-              />
+              <Image source={require("../../assets/images/splash-icon.png")} style={styles.appIcon} resizeMode="contain" />
             </View>
 
             <View>
-              <Text style={styles.userName}>Hi, {displayName}</Text>
-              <Text style={styles.subText}>Ask • Learn • Get help</Text>
+              <Text style={styles.userName}>{t("hi", { name: displayName })}</Text>
+              <Text style={styles.subText}>{t("askLearnHelp")}</Text>
             </View>
           </View>
 
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.iconBtn}
-              onPress={() => Alert.alert("Notifications", "Coming next (we’ll connect it).")}
+              onPress={() => Alert.alert("Notifications", "Coming next.")}
               activeOpacity={0.85}
             >
-              <Ionicons name="notifications-outline" size={18} color="#111827" />
+              <Ionicons name="notifications-outline" size={18} color={theme.text} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => router.push("/(user)/profile")}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="person-outline" size={18} color="#111827" />
+            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(user)/profile")} activeOpacity={0.85}>
+              <Ionicons name="person-outline" size={18} color={theme.text} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Search */}
         <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(user)/consult")} style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color="#6B7280" style={{ marginRight: 8 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Ask a legal question…"
-            placeholderTextColor="#9CA3AF"
-            editable={false}
-          />
+          <Ionicons name="search-outline" size={18} color={theme.textSub} style={{ marginRight: 8 }} />
+          <TextInput style={styles.searchInput} placeholder={t("askLegalQuestion")} placeholderTextColor={theme.textSub} editable={false} />
           <View style={styles.micBtn}>
-            <Ionicons name="mic-outline" size={18} color="#2563EB" />
+            <Ionicons name="mic-outline" size={18} color={theme.blue} />
           </View>
         </TouchableOpacity>
 
-        {/* Quick Actions (new, but small) */}
+        {/* Quick Actions */}
         <View style={styles.quickRow}>
           <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/consult")} activeOpacity={0.9}>
-            <Ionicons name="help-circle-outline" size={16} color="#0F3D63" />
-            <Text style={styles.quickText}>Ask</Text>
+            <Ionicons name="help-circle-outline" size={16} color={theme.text} />
+            <Text style={styles.quickText}>{t("ask")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/history")} activeOpacity={0.9}>
-            <Ionicons name="time-outline" size={16} color="#0F3D63" />
-            <Text style={styles.quickText}>History</Text>
+            <Ionicons name="time-outline" size={16} color={theme.text} />
+            <Text style={styles.quickText}>{t("history")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/library")} activeOpacity={0.9}>
-            <Ionicons name="library-outline" size={16} color="#0F3D63" />
-            <Text style={styles.quickText}>Library</Text>
+            <Ionicons name="library-outline" size={16} color={theme.text} />
+            <Text style={styles.quickText}>{t("library")}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Categories */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Categories</Text>
+          <Text style={styles.sectionTitle}>{t("categories")}</Text>
           <TouchableOpacity onPress={() => router.push("/(user)/library")} activeOpacity={0.8}>
-            <Ionicons name="chevron-forward" size={18} color="#2563EB" />
+            <Ionicons name="chevron-forward" size={18} color={theme.blue} />
           </TouchableOpacity>
         </View>
 
@@ -343,15 +321,10 @@ export default function Dashboard() {
               key={c.key}
               style={[styles.catCard, { backgroundColor: c.bg }]}
               activeOpacity={0.9}
-              onPress={() =>
-                router.push({
-                  pathname: "/(user)/library",
-                  params: { category: c.key },
-                })
-              }
+              onPress={() => router.push({ pathname: "/(user)/library", params: { category: c.key } })}
             >
               <View style={styles.catIconBox}>
-                <Ionicons name={c.icon as any} size={20} color="#111827" />
+                <Ionicons name={c.icon as any} size={20} color={theme.text} />
               </View>
               <Text style={styles.catTitle}>{c.title}</Text>
             </TouchableOpacity>
@@ -361,24 +334,24 @@ export default function Dashboard() {
         {/* Recent */}
         <View style={[styles.sectionRow, { marginTop: 16 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={styles.sectionTitle}>Recent</Text>
+            <Text style={styles.sectionTitle}>{t("recent")}</Text>
             {lastUpdated ? <Text style={styles.mutedTiny}>• {lastUpdated}</Text> : null}
           </View>
 
           <TouchableOpacity onPress={() => loadRecent(true)} activeOpacity={0.8}>
-            <Ionicons name="refresh-outline" size={18} color="#2563EB" />
+            <Ionicons name="refresh-outline" size={18} color={theme.blue} />
           </TouchableOpacity>
         </View>
 
         {recentError ? (
           <View style={styles.errorCard}>
-            <Ionicons name="alert-circle-outline" size={18} color="#B91C1C" />
+            <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.errorTitle}>Could not load recent</Text>
+              <Text style={styles.errorTitle}>Error</Text>
               <Text style={styles.errorText}>{recentError}</Text>
             </View>
             <TouchableOpacity style={styles.retryBtn} onPress={() => loadRecent(true)} activeOpacity={0.9}>
-              <Text style={styles.retryText}>Retry</Text>
+              <Text style={styles.retryText}>{t("retry")}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -387,14 +360,12 @@ export default function Dashboard() {
           {loadingRecent ? (
             <View style={[styles.recentItem, { justifyContent: "center" }]}>
               <ActivityIndicator />
-              <Text style={{ marginLeft: 10, color: "#6B7280", fontWeight: "800" }}>Loading recent…</Text>
+              <Text style={{ marginLeft: 10, color: theme.textSub, fontWeight: "800" }}>{t("loadingRecent")}</Text>
             </View>
           ) : recent.length === 0 ? (
             <View style={[styles.recentItem, { justifyContent: "center" }]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#6B7280" />
-              <Text style={{ marginLeft: 10, color: "#6B7280", fontWeight: "800" }}>
-                No recent questions yet
-              </Text>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.textSub} />
+              <Text style={{ marginLeft: 10, color: theme.textSub, fontWeight: "800" }}>{t("noRecent")}</Text>
             </View>
           ) : (
             recent.map((r) => {
@@ -404,15 +375,14 @@ export default function Dashboard() {
                   key={r._id}
                   style={styles.recentItem}
                   activeOpacity={0.9}
-                  onPress={() => router.push("/(user)/history")}
+                  onPress={() => router.push({ pathname: "/(user)/question-details", params: { id: r._id } })}
                 >
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color="#111827" />
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.text} />
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.recentTitle} numberOfLines={1}>
                       {r.question}
                     </Text>
 
-                    {/* category + status chips */}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
                       <View style={styles.catChip}>
                         <Text style={styles.catChipText}>{safeCategoryLabel(r.category)}</Text>
@@ -425,7 +395,7 @@ export default function Dashboard() {
                   </View>
 
                   <Text style={styles.recentMeta}>{prettyMeta(r.updatedAt || r.createdAt)}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={16} color={theme.chevron} />
                 </TouchableOpacity>
               );
             })
@@ -439,16 +409,12 @@ export default function Dashboard() {
               <Ionicons name="alert-circle" size={18} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.helpTitle}>Urgent help</Text>
-              <Text style={styles.helpText}>National Legal Aid</Text>
+              <Text style={styles.helpTitle}>{t("urgentHelp")}</Text>
+              <Text style={styles.helpText}>{t("nationalLegalAid")}</Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.callBtn}
-            onPress={() => Alert.alert("Call", "Add the real Legal Aid phone number here when you’re ready.")}
-            activeOpacity={0.9}
-          >
+          <TouchableOpacity style={styles.callBtn} onPress={() => Alert.alert("Call", "Add legal aid number later.")} activeOpacity={0.9}>
             <Ionicons name="call-outline" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -461,180 +427,85 @@ export default function Dashboard() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#ffffff" },
-  container: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 },
-  center: { alignItems: "center", justifyContent: "center" },
+function makeStyles(theme: any, s: number) {
+  return {
+    screen: { flex: 1, backgroundColor: theme.bg },
+    container: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 },
+    center: { alignItems: "center", justifyContent: "center" },
 
-  loadingText: { marginTop: 10, color: "#6B7280", fontWeight: "800" },
+    loadingText: { marginTop: 10, color: theme.textSub, fontWeight: "800" },
 
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  appIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#0F3D63",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  appIcon: { width: 22, height: 22 },
+    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    appIconBox: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#0F3D63", alignItems: "center", justifyContent: "center" },
+    appIcon: { width: 22, height: 22 },
 
-  userName: { fontSize: 16, fontWeight: "900", color: "#111827" },
-  subText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+    userName: { fontSize: 16 * s, fontWeight: "900", color: theme.text },
+    subText: { fontSize: 12 * s, color: theme.textSub, marginTop: 2 },
 
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+    iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
 
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    marginBottom: 12,
-  },
-  searchInput: { flex: 1, fontSize: 13, color: "#111827" },
-  micBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: "#EEF2FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    searchWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: theme.card,
+      marginBottom: 12,
+    },
+    searchInput: { flex: 1, fontSize: 13 * s, color: theme.text },
+    micBtn: { width: 38, height: 38, borderRadius: 14, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
 
-  quickRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  quickBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    paddingVertical: 12,
-  },
-  quickText: { fontWeight: "900", color: "#111827", fontSize: 12 },
+    quickRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+    quickBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      borderRadius: 16,
+      paddingVertical: 12,
+    },
+    quickText: { fontWeight: "900", color: theme.text, fontSize: 12 * s },
 
-  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
-  mutedTiny: { fontSize: 10, color: "#9CA3AF", fontWeight: "800" },
+    sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+    sectionTitle: { fontSize: 14 * s, fontWeight: "900", color: theme.text },
+    mutedTiny: { fontSize: 10 * s, color: theme.chevron, fontWeight: "800" },
 
-  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
-  catCard: {
-    width: "48%",
-    borderRadius: 18,
-    padding: 12,
-    minHeight: 94,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    justifyContent: "center",
-  },
-  catIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.8)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  catTitle: { fontSize: 13, fontWeight: "900", color: "#111827" },
+    grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
+    catCard: { width: "48%", borderRadius: 18, padding: 12, minHeight: 94, borderWidth: 1, borderColor: theme.border, justifyContent: "center" },
+    catIconBox: { width: 38, height: 38, borderRadius: 14, backgroundColor: theme.card, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+    catTitle: { fontSize: 13 * s, fontWeight: "900", color: theme.text },
 
-  errorCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    marginBottom: 10,
-  },
-  errorTitle: { color: "#7F1D1D", fontWeight: "900" },
-  errorText: { color: "#7F1D1D", fontWeight: "700", marginTop: 2 },
-  retryBtn: {
-    backgroundColor: "#B91C1C",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  retryText: { color: "#fff", fontWeight: "900", fontSize: 12 },
+    errorCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 16, backgroundColor: theme.dangerBg, borderWidth: 1, borderColor: theme.dangerBg, marginBottom: 10 },
+    errorTitle: { color: theme.danger, fontWeight: "900" },
+    errorText: { color: theme.danger, fontWeight: "700", marginTop: 2 },
+    retryBtn: { backgroundColor: theme.danger, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+    retryText: { color: "#fff", fontWeight: "900", fontSize: 12 * s },
 
-  recentList: { gap: 10 },
-  recentItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    padding: 12,
-    backgroundColor: "#fff",
-  },
-  recentTitle: { fontSize: 13, fontWeight: "800", color: "#111827" },
-  recentMeta: { fontSize: 11, color: "#6B7280", marginRight: 8 },
+    recentList: { gap: 10 },
+    recentItem: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12, backgroundColor: theme.card },
+    recentTitle: { fontSize: 13 * s, fontWeight: "800", color: theme.text },
+    recentMeta: { fontSize: 11 * s, color: theme.textSub, marginRight: 8 },
 
-  catChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-  },
-  catChipText: { fontSize: 10, fontWeight: "900", color: "#374151" },
+    catChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.muted },
+    catChipText: { fontSize: 10 * s, fontWeight: "900", color: theme.text },
 
-  statusChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  statusChipText: { fontSize: 10, fontWeight: "900" },
+    statusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+    statusChipText: { fontSize: 10 * s, fontWeight: "900" },
 
-  helpCard: {
-    marginTop: 14,
-    borderRadius: 18,
-    padding: 14,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  helpIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 14,
-    backgroundColor: "#EF4444",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  helpTitle: { fontSize: 13, fontWeight: "900", color: "#111827" },
-  helpText: { fontSize: 11, color: "#6B7280", marginTop: 2 },
+    helpCard: { marginTop: 14, borderRadius: 18, padding: 14, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+    helpIcon: { width: 34, height: 34, borderRadius: 14, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+    helpTitle: { fontSize: 13 * s, fontWeight: "900", color: theme.text },
+    helpText: { fontSize: 11 * s, color: theme.textSub, marginTop: 2 },
 
-  callBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: "#EF4444",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+    callBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+  };
+}

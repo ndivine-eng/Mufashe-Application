@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+// app/(user)/settings.tsx
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,130 +13,71 @@ import {
   Pressable,
 } from "react-native";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import BottomNav from "../../components/BottomNav";
+import { FontSize, Language, useAppSettings } from "../lib/appSettings";
+import { useT } from "../lib/i18n";
 
-/**
- * SettingsScreen (FULL FILE)
- * ✅ Ionicons (no emojis)
- * ✅ Font size dropdown (modal)
- * ✅ Persists settings in AsyncStorage
- * ✅ BottomNav included + content padding so it won't overlap
- *
- * NOTE: Update STORAGE_KEYS.chatMessages/chatThreads to match your real app keys.
- */
-
-const STORAGE_KEYS = {
-  settings: "@mufashe_settings_v2",
-  chatMessages: "@mufashe_chat_messages",
-  chatThreads: "@mufashe_chat_threads",
-};
-
-type FontSize = "Small" | "Default" | "Large";
-
-type SettingsState = {
-  pushNotifications: boolean;
-  emailUpdates: boolean;
-  highContrast: boolean;
-  fontSize: FontSize;
-};
-
-const DEFAULT_SETTINGS: SettingsState = {
-  pushNotifications: true,
-  emailUpdates: false,
-  highContrast: false,
-  fontSize: "Default",
-};
-
-// Adjust this to match your BottomNav height (most are ~70–90)
 const BOTTOM_NAV_SPACE = 92;
+const RECENT_CACHE_KEY = "@mufashe_recent_questions_cache_v1";
 
 export default function SettingsScreen() {
-  const [loading, setLoading] = useState(true);
-
-  const [pushNotifications, setPushNotifications] = useState(DEFAULT_SETTINGS.pushNotifications);
-  const [emailUpdates, setEmailUpdates] = useState(DEFAULT_SETTINGS.emailUpdates);
-  const [highContrast, setHighContrast] = useState(DEFAULT_SETTINGS.highContrast);
-  const [fontSize, setFontSize] = useState<FontSize>(DEFAULT_SETTINGS.fontSize);
+  const { loading, settings, theme, scale, updateSettings, resetSettings } = useAppSettings();
+  const t = useT();
+  const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
 
   const [fontModalOpen, setFontModalOpen] = useState(false);
 
-  const theme = useMemo(() => makeTheme(highContrast), [highContrast]);
-  const styles = useMemo(() => StyleSheet.create(makeStyles(theme, fontSize)), [theme, fontSize]);
+  const pickFontSize = (size: FontSize) => {
+    updateSettings({ fontSize: size });
+    setFontModalOpen(false);
+  };
 
-  // Load saved settings
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEYS.settings);
-        if (raw) {
-          const parsed = JSON.parse(raw) as Partial<SettingsState>;
-          setPushNotifications(parsed.pushNotifications ?? DEFAULT_SETTINGS.pushNotifications);
-          setEmailUpdates(parsed.emailUpdates ?? DEFAULT_SETTINGS.emailUpdates);
-          setHighContrast(parsed.highContrast ?? DEFAULT_SETTINGS.highContrast);
-          setFontSize(parsed.fontSize ?? DEFAULT_SETTINGS.fontSize);
-        }
-      } catch {
-        // ignore corrupted settings
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  // Persist settings
-  useEffect(() => {
-    if (loading) return;
-    const state: SettingsState = { pushNotifications, emailUpdates, highContrast, fontSize };
-    AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(state)).catch(() => {});
-  }, [pushNotifications, emailUpdates, highContrast, fontSize, loading]);
+  const pickLanguage = (lang: Language) => {
+    updateSettings({ language: lang });
+  };
 
   const onExportData = async () => {
     try {
-      // Example export payload (you can expand later)
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        settings: { pushNotifications, emailUpdates, highContrast, fontSize },
-      };
+      const payload = { exportedAt: new Date().toISOString(), settings };
       const json = JSON.stringify(payload, null, 2);
-      Alert.alert("Export Ready", `Export prepared (${json.length} chars).`);
+      Alert.alert(t("exportReadyTitle"), t("exportReadyMsg", { n: String(json.length) }));
     } catch {
-      Alert.alert("Export Failed", "Could not prepare export.");
+      Alert.alert(t("exportFailedTitle"), t("exportFailedMsg"));
     }
   };
 
-  const onClearChatHistory = () => {
-    Alert.alert(
-      "Clear Chat History",
-      "This will remove your chat history from this device. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await AsyncStorage.multiRemove([STORAGE_KEYS.chatMessages, STORAGE_KEYS.chatThreads]);
-              Alert.alert("Done", "Chat history cleared.");
-            } catch {
-              Alert.alert("Error", "Could not clear chat history.");
-            }
-          },
+  const onClearLocalCache = async () => {
+    Alert.alert(t("clearCacheTitle"), t("clearCacheMsg"), [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("clear"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await AsyncStorage.removeItem(RECENT_CACHE_KEY);
+            Alert.alert(t("doneTitle"), t("cacheClearedMsg"));
+          } catch {
+            Alert.alert(t("errorTitle"), t("clearCacheFailedMsg"));
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const pickFontSize = (size: FontSize) => {
-    setFontSize(size);
-    setFontModalOpen(false);
+  const onReset = () => {
+    Alert.alert(t("resetTitle"), t("resetMsg"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("reset"), style: "destructive", onPress: resetSettings },
+    ]);
   };
 
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: theme.textSub, fontWeight: "800" }}>Loading settings…</Text>
+        <Text style={{ color: theme.textSub, fontWeight: "800" }}>{t("loadingSettings")}</Text>
       </SafeAreaView>
     );
   }
@@ -149,47 +91,97 @@ export default function SettingsScreen() {
             <Ionicons name="chevron-back" size={20} color={theme.text} />
           </TouchableOpacity>
 
-          <Text style={styles.topTitle}>App Settings</Text>
+          <Text style={styles.topTitle}>{t("settings")}</Text>
 
           <View style={{ width: 38 }} />
         </View>
 
-        {/* Scroll Content */}
         <ScrollView
           contentContainerStyle={[styles.container, { paddingBottom: BOTTOM_NAV_SPACE }]}
           showsVerticalScrollIndicator={false}
         >
+          {/* APPEARANCE */}
+          <Text style={styles.sectionLabel}>{t("appearance")}</Text>
+          <View style={styles.card}>
+            <RowToggle
+              icon="moon-outline"
+              title={t("darkMode")}
+              subtitle={t("darkModeSub")}
+              value={settings.themeMode === "dark"}
+              onChange={(v) => updateSettings({ themeMode: v ? "dark" : "light" })}
+              theme={theme}
+              styles={styles}
+            />
+            <Divider styles={styles} />
+
+            <RowRightText
+              icon="text-outline"
+              title={t("fontSize")}
+              subtitle={t("fontSizeSub")}
+              rightText={settings.fontSize}
+              onPress={() => setFontModalOpen(true)}
+              theme={theme}
+              styles={styles}
+            />
+            <Divider styles={styles} />
+
+            <RowToggle
+              icon="contrast-outline"
+              title={t("highContrast")}
+              subtitle={t("highContrastSub")}
+              value={settings.highContrast}
+              onChange={(v) => updateSettings({ highContrast: v })}
+              theme={theme}
+              styles={styles}
+            />
+          </View>
+
+          {/* LANGUAGE */}
+          <Text style={styles.sectionLabel}>{t("language")}</Text>
+          <View style={styles.card}>
+            <RowPills
+              icon="language-outline"
+              title={t("appLanguage")}
+              subtitle={t("appLanguageSub")}
+              options={["English", "Kinyarwanda"]}
+              value={settings.language}
+              onPick={(v) => pickLanguage(v as Language)}
+              theme={theme}
+              styles={styles}
+            />
+          </View>
+
           {/* NOTIFICATIONS */}
-          <Text style={styles.sectionLabel}>NOTIFICATION SETTINGS</Text>
+          <Text style={styles.sectionLabel}>{t("notifications")}</Text>
           <View style={styles.card}>
             <RowToggle
               icon="notifications-outline"
-              title="Push Notifications"
-              subtitle="Get important alerts and reminders."
-              value={pushNotifications}
-              onChange={setPushNotifications}
+              title={t("pushNotifications")}
+              subtitle={t("pushNotificationsSub")}
+              value={settings.pushNotifications}
+              onChange={(v) => updateSettings({ pushNotifications: v })}
               theme={theme}
               styles={styles}
             />
             <Divider styles={styles} />
             <RowToggle
               icon="mail-outline"
-              title="Email Updates"
-              subtitle="Receive updates by email."
-              value={emailUpdates}
-              onChange={setEmailUpdates}
+              title={t("emailUpdates")}
+              subtitle={t("emailUpdatesSub")}
+              value={settings.emailUpdates}
+              onChange={(v) => updateSettings({ emailUpdates: v })}
               theme={theme}
               styles={styles}
             />
           </View>
 
           {/* PRIVACY & DATA */}
-          <Text style={styles.sectionLabel}>PRIVACY & DATA</Text>
+          <Text style={styles.sectionLabel}>{t("privacyData")}</Text>
           <View style={styles.card}>
             <RowNav
               icon="download-outline"
-              title="Export My Data"
-              subtitle="Download a copy of your settings."
+              title={t("exportSettings")}
+              subtitle={t("exportSettingsSub")}
               onPress={onExportData}
               theme={theme}
               styles={styles}
@@ -197,83 +189,69 @@ export default function SettingsScreen() {
             <Divider styles={styles} />
             <RowNav
               icon="trash-outline"
-              title="Clear Chat History"
-              subtitle="Remove saved chats from this device."
+              title={t("clearLocalCache")}
+              subtitle={t("clearLocalCacheSub")}
               danger
-              onPress={onClearChatHistory}
-              theme={theme}
-              styles={styles}
-            />
-          </View>
-
-          {/* ACCESSIBILITY */}
-          <Text style={styles.sectionLabel}>ACCESSIBILITY</Text>
-          <View style={styles.card}>
-            <RowRightText
-              icon="text-outline"
-              title="Font Size"
-              subtitle="Choose the text size you prefer."
-              rightText={fontSize}
-              onPress={() => setFontModalOpen(true)}
-              theme={theme}
-              styles={styles}
-            />
-            <Divider styles={styles} />
-            <RowToggle
-              icon="contrast-outline"
-              title="High Contrast"
-              subtitle="Increase contrast for readability."
-              value={highContrast}
-              onChange={setHighContrast}
+              onPress={onClearLocalCache}
               theme={theme}
               styles={styles}
             />
           </View>
 
           {/* ABOUT */}
-          <Text style={styles.sectionLabel}>ABOUT MUFASHE</Text>
+          <Text style={styles.sectionLabel}>{t("about")}</Text>
           <View style={styles.card}>
             <RowNav
               icon="document-text-outline"
-              title="Terms of Service"
-              subtitle="Read our terms and conditions."
-              onPress={() => Alert.alert("Coming soon", "Terms will be available soon.")}
+              title={t("terms")}
+              subtitle={t("termsSub")}
+              onPress={() => Alert.alert(t("comingSoonTitle"), t("termsSoonMsg"))}
               theme={theme}
               styles={styles}
             />
             <Divider styles={styles} />
             <RowNav
               icon="shield-checkmark-outline"
-              title="Privacy Policy"
-              subtitle="How we protect your data."
-              onPress={() => Alert.alert("Coming soon", "Privacy policy will be available soon.")}
+              title={t("privacyPolicy")}
+              subtitle={t("privacyPolicySub")}
+              onPress={() => Alert.alert(t("comingSoonTitle"), t("privacySoonMsg"))}
               theme={theme}
               styles={styles}
             />
           </View>
 
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerTitle}>Mufashe Legal Awareness</Text>
-            <Text style={styles.footerSub}>Version 1.0.2 (Build 42)</Text>
+          {/* ADVANCED */}
+          <Text style={styles.sectionLabel}>{t("advanced")}</Text>
+          <View style={styles.card}>
+            <RowNav
+              icon="refresh-outline"
+              title={t("resetSettings")}
+              subtitle={t("resetSettingsSub")}
+              danger
+              onPress={onReset}
+              theme={theme}
+              styles={styles}
+            />
           </View>
 
-          <View style={{ height: 14 }} />
+          <View style={styles.footer}>
+            <Text style={styles.footerTitle}>Mufashe Legal Awareness</Text>
+            <Text style={styles.footerSub}>Version 1.0</Text>
+          </View>
         </ScrollView>
 
-        {/* Bottom Nav */}
         <BottomNav />
       </View>
 
-      {/* Font Size Dropdown Modal */}
+      {/* Font size modal */}
       <Modal visible={fontModalOpen} transparent animationType="fade" onRequestClose={() => setFontModalOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setFontModalOpen(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
-            <Text style={styles.modalTitle}>Choose Font Size</Text>
+            <Text style={styles.modalTitle}>{t("chooseFontSize")}</Text>
 
-            <Option label="Small" active={fontSize === "Small"} onPress={() => pickFontSize("Small")} styles={styles} theme={theme} />
-            <Option label="Default" active={fontSize === "Default"} onPress={() => pickFontSize("Default")} styles={styles} theme={theme} />
-            <Option label="Large" active={fontSize === "Large"} onPress={() => pickFontSize("Large")} styles={styles} theme={theme} />
+            <Option label="Small" active={settings.fontSize === "Small"} onPress={() => pickFontSize("Small")} styles={styles} theme={theme} />
+            <Option label="Default" active={settings.fontSize === "Default"} onPress={() => pickFontSize("Default")} styles={styles} theme={theme} />
+            <Option label="Large" active={settings.fontSize === "Large"} onPress={() => pickFontSize("Large")} styles={styles} theme={theme} />
           </Pressable>
         </Pressable>
       </Modal>
@@ -281,7 +259,7 @@ export default function SettingsScreen() {
   );
 }
 
-/* ---------------- Components ---------------- */
+/* Components */
 
 function Divider({ styles }: { styles: any }) {
   return <View style={styles.divider} />;
@@ -400,6 +378,57 @@ function RowRightText({
   );
 }
 
+function RowPills({
+  icon,
+  title,
+  subtitle,
+  options,
+  value,
+  onPick,
+  styles,
+  theme,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle?: string;
+  options: string[];
+  value: string;
+  onPick: (v: string) => void;
+  styles: any;
+  theme: any;
+}) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <View style={styles.iconBox}>
+          <Ionicons name={icon} size={18} color={theme.text} />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowTitle}>{title}</Text>
+          {!!subtitle && <Text style={styles.rowSub}>{subtitle}</Text>}
+
+          <View style={styles.pillsRow}>
+            {options.map((opt) => {
+              const active = opt === value;
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={[styles.pill, active && styles.pillActive]}
+                  onPress={() => onPick(opt)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{opt}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function Option({
   label,
   active,
@@ -421,57 +450,7 @@ function Option({
   );
 }
 
-/* ---------------- Theme + Styles ---------------- */
-
-function makeTheme(highContrast: boolean) {
-  if (!highContrast) {
-    return {
-      bg: "#ffffff",
-      card: "#ffffff",
-      border: "#E5E7EB",
-      divider: "#E5E7EB",
-      text: "#111827",
-      textSub: "#6B7280",
-      muted: "#F3F4F6",
-      blue: "#2563EB",
-      danger: "#DC2626",
-      dangerBg: "#FEE2E2",
-      switchTrackOn: "#93C5FD",
-      switchTrackOff: "#D1D5DB",
-      switchThumb: "#ffffff",
-      topBorder: "#EEF2F7",
-      chevron: "#9CA3AF",
-    };
-  }
-
-  return {
-    bg: "#0B1220",
-    card: "#0F1A2E",
-    border: "#25324A",
-    divider: "#25324A",
-    text: "#F9FAFB",
-    textSub: "#C7D2FE",
-    muted: "#111C33",
-    blue: "#60A5FA",
-    danger: "#F87171",
-    dangerBg: "#3B0D14",
-    switchTrackOn: "#2563EB",
-    switchTrackOff: "#334155",
-    switchThumb: "#E5E7EB",
-    topBorder: "#25324A",
-    chevron: "#CBD5E1",
-  };
-}
-
-function fontScale(fontSize: FontSize) {
-  if (fontSize === "Small") return 0.92;
-  if (fontSize === "Large") return 1.12;
-  return 1;
-}
-
-function makeStyles(theme: any, fontSize: FontSize) {
-  const s = fontScale(fontSize);
-
+function makeStyles(theme: any, s: number) {
   return {
     safe: { flex: 1, backgroundColor: theme.bg },
     screen: { flex: 1, backgroundColor: theme.bg },
@@ -505,6 +484,7 @@ function makeStyles(theme: any, fontSize: FontSize) {
       color: theme.textSub,
       fontWeight: "900",
       letterSpacing: 0.6,
+      textTransform: "uppercase",
     },
 
     card: {
@@ -542,6 +522,22 @@ function makeStyles(theme: any, fontSize: FontSize) {
     rightWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
     rightText: { fontSize: 12 * s, color: theme.textSub, fontWeight: "800" },
 
+    pillsRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
+    pill: {
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+    },
+    pillActive: {
+      borderColor: theme.blue,
+      backgroundColor: theme.muted, // ✅ safe (no theme.chipBg dependency)
+    },
+    pillText: { fontSize: 11 * s, fontWeight: "800", color: theme.textSub },
+    pillTextActive: { color: theme.blue },
+
     dangerText: { color: theme.danger },
     dangerSub: { color: theme.danger },
 
@@ -549,7 +545,6 @@ function makeStyles(theme: any, fontSize: FontSize) {
     footerTitle: { fontSize: 12 * s, fontWeight: "800", color: theme.textSub },
     footerSub: { fontSize: 11 * s, fontWeight: "700", color: theme.chevron, marginTop: 4 },
 
-    // Modal
     modalBackdrop: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.45)",
@@ -577,16 +572,8 @@ function makeStyles(theme: any, fontSize: FontSize) {
       alignItems: "center",
       justifyContent: "space-between",
     },
-    optionRowActive: {
-      backgroundColor: theme.muted,
-    },
-    optionText: {
-      fontSize: 13 * s,
-      fontWeight: "800",
-      color: theme.text,
-    },
-    optionTextActive: {
-      color: theme.blue,
-    },
+    optionRowActive: { backgroundColor: theme.muted },
+    optionText: { fontSize: 13 * s, fontWeight: "800", color: theme.text },
+    optionTextActive: { color: theme.blue },
   };
 }
