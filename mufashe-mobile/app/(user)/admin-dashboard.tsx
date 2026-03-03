@@ -1,5 +1,4 @@
 // app/(user)/admin-dashboard.tsx
-
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -42,6 +41,7 @@ type UserRow = {
   username?: string;
   email?: string;
   role?: string;
+  isVerifiedLawyer?: boolean;
   createdAt?: string;
 };
 
@@ -53,10 +53,8 @@ type QuestionRow = {
   createdAt?: string;
 };
 
-//  You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
 
-// Safe join to avoid double slashes
 function joinUrl(base: string, path: string) {
   const b = base.replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
@@ -84,21 +82,27 @@ function badgeStyle(status: string) {
   return { bg: "#F3F4F6", border: "#E5E7EB", text: "#374151" };
 }
 
-async function apiRequest(method: "GET" | "POST", path: string, body?: any) {
+function roleChip(role?: string) {
+  const r = String(role || "user").toLowerCase();
+  if (r === "admin") return { bg: "#EEF2FF", border: "#C7D2FE", text: "#1D4ED8" };
+  if (r === "lawyer") return { bg: "#ECFDF3", border: "#A7F3D0", text: "#065F46" };
+  return { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" };
+}
+
+async function apiRequest(method: "GET" | "POST" | "PATCH", path: string, body?: any) {
   const token = await AsyncStorage.getItem("token");
   if (!token) throw new Error("Missing token");
 
   const url = joinUrl(BASE_URL, path);
-  console.log(`${method} =>`, url);
 
   const res = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
-      ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+      ...(method !== "GET" ? { "Content-Type": "application/json" } : {}),
     },
-    ...(method === "POST" ? { body: JSON.stringify(body || {}) } : {}),
+    ...(method !== "GET" ? { body: JSON.stringify(body || {}) } : {}),
   });
 
   const text = await res.text();
@@ -107,6 +111,12 @@ async function apiRequest(method: "GET" | "POST", path: string, body?: any) {
     data = text ? JSON.parse(text) : {};
   } catch {
     data = { message: text };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("user");
+    throw new Error("Session expired. Please login again.");
   }
 
   if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
@@ -122,12 +132,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  //  questions stats (optional)
   const [pendingQuestions, setPendingQuestions] = useState(0);
 
-  // per-document processing state
   const [processingIds, setProcessingIds] = useState<Record<string, boolean>>({});
   const [processingAll, setProcessingAll] = useState(false);
+
+  const [roleBusy, setRoleBusy] = useState<Record<string, boolean>>({});
 
   const stats = useMemo(() => {
     const totalDocs = docs.length;
@@ -136,7 +146,9 @@ export default function AdminDashboard() {
     const failed = docs.filter((d) => normStatus(d.status) === "FAILED").length;
     const uploaded = docs.filter((d) => normStatus(d.status) === "UPLOADED").length;
     const totalUsers = users.length;
-    return { totalDocs, ready, processing, failed, uploaded, totalUsers };
+    const totalLawyers = users.filter((u) => String(u.role || "").toLowerCase() === "lawyer").length;
+
+    return { totalDocs, ready, processing, failed, uploaded, totalUsers, totalLawyers };
   }, [docs, users]);
 
   const protectAndLoad = useCallback(async () => {
@@ -166,11 +178,9 @@ export default function AdminDashboard() {
 
       setDisplayName(pickDisplayName(user));
 
-      //  docs
       const docsRes = await apiRequest("GET", "/documents");
       setDocs(docsRes?.items || []);
 
-      //  users (optional)
       try {
         const usersRes = await apiRequest("GET", "/users");
         setUsers(usersRes?.items || usersRes?.users || []);
@@ -178,8 +188,6 @@ export default function AdminDashboard() {
         setUsers([]);
       }
 
-      //  pending questions count (optional)
-      // Requires backend: GET /api/questions?status=PENDING (admin)
       try {
         const qRes = await apiRequest("GET", "/questions?status=PENDING");
         const items: QuestionRow[] = qRes?.items || [];
@@ -218,16 +226,12 @@ export default function AdminDashboard() {
     router.replace("/(auth)/login");
   }, []);
 
-  //  Process one doc: POST /api/documents/:id/process
   const processOne = useCallback(
     async (docId: string, title?: string) => {
       try {
         setProcessingIds((prev) => ({ ...prev, [docId]: true }));
-
         const res = await apiRequest("POST", `/documents/${docId}/process`);
-
         Alert.alert("Processed ✅", `${title || "Document"} is now ${res?.document?.status || "READY"}`);
-
         await protectAndLoad();
       } catch (e: any) {
         Alert.alert("Processing failed ❌", e?.message || "Failed to process document");
@@ -238,7 +242,6 @@ export default function AdminDashboard() {
     [protectAndLoad]
   );
 
-  //  Process all UPLOADED/FAILED docs (frontend loop)
   const processAll = useCallback(async () => {
     try {
       const candidates = docs.filter((d) => {
@@ -255,14 +258,11 @@ export default function AdminDashboard() {
         { text: "Cancel", style: "cancel" },
         {
           text: "Yes",
-          style: "default",
           onPress: async () => {
             setProcessingAll(true);
-
             let ok = 0;
             let fail = 0;
 
-            // sequential to avoid hammering server/OpenAI
             for (const d of candidates) {
               try {
                 const id = String(d._id);
@@ -279,7 +279,6 @@ export default function AdminDashboard() {
 
             setProcessingAll(false);
             await protectAndLoad();
-
             Alert.alert("Process All complete ✅", `Success: ${ok}\nFailed: ${fail}`);
           },
         },
@@ -289,6 +288,43 @@ export default function AdminDashboard() {
       Alert.alert("Process all failed ❌", e?.message || "Failed");
     }
   }, [docs, protectAndLoad]);
+
+  const setUserRole = useCallback(
+    async (target: UserRow, newRole: "user" | "lawyer") => {
+      const id = String(target._id || "");
+      if (!id) return;
+
+      const targetName = target.name || target.fullName || target.username || target.email || "User";
+      const actionLabel = newRole === "lawyer" ? "Approve as Lawyer" : "Revoke Lawyer";
+
+      Alert.alert(actionLabel, `Change ${targetName} role to "${newRole}"?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes",
+          onPress: async () => {
+            try {
+              setRoleBusy((p) => ({ ...p, [id]: true }));
+              await apiRequest("PATCH", `/admin/users/${id}/role`, { role: newRole });
+
+              Alert.alert(
+                "Updated ✅",
+                newRole === "lawyer"
+                  ? `${targetName} is now approved as a lawyer. (They must submit profile for review)`
+                  : `${targetName} lawyer access was removed.`
+              );
+
+              await protectAndLoad();
+            } catch (e: any) {
+              Alert.alert("Failed ❌", e?.message || "Could not update role");
+            } finally {
+              setRoleBusy((p) => ({ ...p, [id]: false }));
+            }
+          },
+        },
+      ]);
+    },
+    [protectAndLoad]
+  );
 
   if (loading) {
     return (
@@ -329,7 +365,6 @@ export default function AdminDashboard() {
             <Text style={styles.errorText}>
               {errorMsg}
               {"\n"}BASE_URL: {BASE_URL}
-              {"\n"}Docs endpoint: {joinUrl(BASE_URL, "/documents")}
             </Text>
           </View>
         ) : null}
@@ -354,6 +389,7 @@ export default function AdminDashboard() {
           </TouchableOpacity>
         </View>
 
+        {/* ✅ row 1 */}
         <View style={styles.actionGrid}>
           <TouchableOpacity
             style={[styles.actionCard, { backgroundColor: "#EEF2FF" }]}
@@ -365,7 +401,6 @@ export default function AdminDashboard() {
             <Text style={styles.actionMeta}>PDF → Extract → Index</Text>
           </TouchableOpacity>
 
-          {/* ✅ UPDATED: now opens the real review screen */}
           <TouchableOpacity
             style={[styles.actionCard, { backgroundColor: "#ECFDF3" }]}
             activeOpacity={0.9}
@@ -379,6 +414,22 @@ export default function AdminDashboard() {
           </TouchableOpacity>
         </View>
 
+        {/* ✅ row 2 (new) */}
+        <View style={styles.actionGrid}>
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: "#FFFBEB" }]}
+            activeOpacity={0.9}
+            onPress={() => router.push("/(user)/admin-lawyer-profiles")}
+          >
+            <Ionicons name="ribbon-outline" size={20} color="#92400E" />
+            <Text style={styles.actionTitle}>Review lawyer profiles</Text>
+            <Text style={styles.actionMeta}>Approve profiles to show to users</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.actionCard, { backgroundColor: "#fff" }]} />
+        </View>
+
+        {/* Overview */}
         <View style={[styles.sectionRow, { marginTop: 16 }]}>
           <Text style={styles.sectionTitle}>Overview</Text>
         </View>
@@ -394,10 +445,14 @@ export default function AdminDashboard() {
             <Text style={styles.statLabel}>Users</Text>
           </View>
 
-          {/* ✅ Optional: pending questions */}
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.totalLawyers}</Text>
+            <Text style={styles.statLabel}>Lawyers</Text>
+          </View>
+
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{pendingQuestions}</Text>
-            <Text style={styles.statLabel}>PENDING QUESTIONS</Text>
+            <Text style={styles.statLabel}>Pending Questions</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -421,66 +476,78 @@ export default function AdminDashboard() {
           </View>
         </View>
 
+        {/* Users & Roles */}
         <View style={[styles.sectionRow, { marginTop: 16 }]}>
-          <Text style={styles.sectionTitle}>Latest documents</Text>
+          <Text style={styles.sectionTitle}>Users & Roles</Text>
         </View>
 
         <View style={{ gap: 10 }}>
-          {docs.slice(0, 10).map((d, idx) => {
-            const key = d._id || String(idx);
-            const status = normStatus(d.status);
-            const badge = badgeStyle(status);
-            const canProcess = (status === "UPLOADED" || status === "FAILED") && !!d._id;
-            const isBusy = !!processingIds[String(d._id || "")];
-
-            return (
-              <View key={key} style={styles.rowCard}>
-                <Ionicons name="document-text-outline" size={18} color="#111827" />
-
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.rowTitle}>{d.title || "Untitled"}</Text>
-                  <Text style={styles.rowMeta}>
-                    {(d.category || "OTHER").toUpperCase()} • {(d.docType || "DOC").toUpperCase()}
-                  </Text>
-                </View>
-
-                <View style={[styles.badge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-                  <Text style={[styles.badgeText, { color: badge.text }]}>{status}</Text>
-                </View>
-
-                {canProcess ? (
-                  <TouchableOpacity
-                    style={[styles.processBtn, isBusy && { opacity: 0.7 }]}
-                    disabled={isBusy}
-                    onPress={() => processOne(String(d._id), d.title)}
-                    activeOpacity={0.9}
-                  >
-                    {isBusy ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Text style={styles.processBtnText}>Process</Text>
-                    )}
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          })}
-
-          {docs.length === 0 ? (
+          {users.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons name="folder-open-outline" size={18} color="#6B7280" />
-              <Text style={styles.emptyTitle}>No documents yet</Text>
-              <Text style={styles.emptyText}>Upload your first legal PDF to start indexing.</Text>
-
-              <TouchableOpacity
-                style={styles.primarySmall}
-                onPress={() => router.push("/(user)/admin-upload")}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.primarySmallText}>Upload now</Text>
-              </TouchableOpacity>
+              <Ionicons name="people-outline" size={18} color="#6B7280" />
+              <Text style={styles.emptyTitle}>No users loaded</Text>
+              <Text style={styles.emptyText}>Make sure GET /api/users returns a list.</Text>
             </View>
-          ) : null}
+          ) : (
+            users.slice(0, 20).map((u) => {
+              const id = String(u._id || "");
+              const name = u.name || u.fullName || u.username || (u.email ? u.email.split("@")[0] : "User");
+              const role = String(u.role || "user").toLowerCase();
+              const chip = roleChip(role);
+              const busy = !!roleBusy[id];
+
+              return (
+                <View key={id} style={styles.userCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.userTitle} numberOfLines={1}>
+                      {name}
+                    </Text>
+                    <Text style={styles.userMeta} numberOfLines={1}>
+                      {u.email || "—"}
+                    </Text>
+
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+                      <View style={[styles.roleChip, { backgroundColor: chip.bg, borderColor: chip.border }]}>
+                        <Text style={[styles.roleChipText, { color: chip.text }]}>{role.toUpperCase()}</Text>
+                      </View>
+
+                      {role === "lawyer" ? (
+                        <View style={[styles.roleChip, { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" }]}>
+                          <Text style={[styles.roleChipText, { color: "#1D4ED8" }]}>
+                            {u.isVerifiedLawyer ? "VERIFIED" : "NOT VERIFIED"}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {role === "admin" ? (
+                    <View style={styles.lockBox}>
+                      <Ionicons name="lock-closed-outline" size={16} color="#6B7280" />
+                    </View>
+                  ) : role === "lawyer" ? (
+                    <TouchableOpacity
+                      style={[styles.roleBtn, { backgroundColor: "#111827" }, busy && { opacity: 0.7 }]}
+                      disabled={busy}
+                      onPress={() => setUserRole(u, "user")}
+                      activeOpacity={0.9}
+                    >
+                      {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.roleBtnText}>Revoke Lawyer</Text>}
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.roleBtn, { backgroundColor: "#0F3D63" }, busy && { opacity: 0.7 }]}
+                      disabled={busy}
+                      onPress={() => setUserRole(u, "lawyer")}
+                      activeOpacity={0.9}
+                    >
+                      {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.roleBtnText}>Approve as Lawyer</Text>}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
+          )}
         </View>
 
         <View style={{ height: 24 }} />
@@ -501,14 +568,7 @@ const styles = StyleSheet.create({
   subText: { fontSize: 12, color: "#6B7280", marginTop: 2 },
 
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
 
   errorCard: {
     flexDirection: "row",
@@ -526,86 +586,32 @@ const styles = StyleSheet.create({
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
 
-  processAllBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#0F3D63",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
+  processAllBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#0F3D63", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12 },
   processAllText: { color: "#fff", fontWeight: "900", fontSize: 12 },
 
   actionGrid: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 12 },
-  actionCard: {
-    width: "48%",
-    borderRadius: 18,
-    padding: 12,
-    minHeight: 104,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    justifyContent: "center",
-  },
+  actionCard: { width: "48%", borderRadius: 18, padding: 12, minHeight: 104, borderWidth: 1, borderColor: "#E5E7EB", justifyContent: "center" },
   actionTitle: { marginTop: 10, fontSize: 13, fontWeight: "900", color: "#111827" },
   actionMeta: { marginTop: 4, fontSize: 11, color: "#6B7280", fontWeight: "800" },
 
   statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  statCard: {
-    width: "48%",
-    borderRadius: 18,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#fff",
-  },
+  statCard: { width: "48%", borderRadius: 18, padding: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff" },
   statValue: { fontSize: 18, fontWeight: "900", color: "#111827" },
   statLabel: { marginTop: 4, fontSize: 11, color: "#6B7280", fontWeight: "800" },
 
-  rowCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    padding: 12,
-    backgroundColor: "#fff",
-    gap: 10,
-  },
-  rowTitle: { fontSize: 13, fontWeight: "900", color: "#111827" },
-  rowMeta: { marginTop: 2, fontSize: 11, color: "#6B7280", fontWeight: "800" },
+  userCard: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 16, padding: 12, backgroundColor: "#fff" },
+  userTitle: { fontSize: 13, fontWeight: "900", color: "#111827" },
+  userMeta: { marginTop: 2, fontSize: 11, color: "#6B7280", fontWeight: "800" },
 
-  badge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
-  badgeText: { fontSize: 10, fontWeight: "900" },
+  roleChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  roleChipText: { fontSize: 10, fontWeight: "900" },
 
-  processBtn: {
-    backgroundColor: "#111827",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  processBtnText: { color: "#fff", fontWeight: "900", fontSize: 12 },
+  roleBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, alignItems: "center", justifyContent: "center", minWidth: 92 },
+  roleBtnText: { color: "#fff", fontWeight: "900", fontSize: 12 },
 
-  emptyCard: {
-    marginTop: 6,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#fff",
-    padding: 14,
-    gap: 6,
-  },
+  lockBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+
+  emptyCard: { marginTop: 6, borderRadius: 18, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff", padding: 14, gap: 6 },
   emptyTitle: { fontWeight: "900", color: "#111827" },
   emptyText: { color: "#6B7280", fontWeight: "700" },
-
-  primarySmall: {
-    marginTop: 10,
-    backgroundColor: "#0F3D63",
-    paddingVertical: 10,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  primarySmallText: { color: "#fff", fontWeight: "900" },
 });

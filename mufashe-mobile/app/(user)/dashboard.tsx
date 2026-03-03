@@ -1,3 +1,4 @@
+// app/(user)/dashboard.tsx
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -59,7 +60,7 @@ function pickDisplayName(u: StoredUser | null) {
   return "User";
 }
 
-//  MUST match ProfileScreen key logic so it reads the same saved photo
+// MUST match ProfileScreen key logic so it reads the same saved photo
 function getUserPhotoKey(u: StoredUser | null) {
   if (!u) return null;
   const userKey = u.id || u._id || u.email || u.emailOrPhone;
@@ -128,7 +129,7 @@ export default function Dashboard() {
   const [displayName, setDisplayName] = useState("...");
   const [loadingUser, setLoadingUser] = useState(true);
 
-  //  profile photo state
+  // profile photo state
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [recent, setRecent] = useState<RecentQuestion[]>([]);
@@ -223,9 +224,20 @@ export default function Dashboard() {
         return;
       }
 
+      // ✅ Role guard: keep admins/lawyers out of user dashboard
+      const role = String(user.role || "user").toLowerCase();
+      if (role === "admin") {
+        router.replace("/(user)/admin-dashboard");
+        return;
+      }
+      if (role === "lawyer") {
+        router.replace("/(lawyer)/dashboard");
+        return;
+      }
+
       setDisplayName(pickDisplayName(user));
 
-      // ✅ load photo saved from ProfileScreen
+      // load photo saved from ProfileScreen
       const photoKey = getUserPhotoKey(user);
       if (photoKey) {
         const savedPhoto = await AsyncStorage.getItem(photoKey);
@@ -288,15 +300,12 @@ export default function Dashboard() {
           </View>
 
           <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => Alert.alert("Notifications", "Coming next.")}
-              activeOpacity={0.85}
-            >
+            {/* ✅ Notifications now opens the real screen */}
+            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(user)/notifications")} activeOpacity={0.85}>
               <Ionicons name="notifications-outline" size={18} color={theme.text} />
             </TouchableOpacity>
 
-            {/* ✅ Profile photo button */}
+            {/* Profile photo button */}
             <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push("/(user)/profile")} activeOpacity={0.85}>
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.avatarThumb} />
@@ -336,6 +345,28 @@ export default function Dashboard() {
           <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/library")} activeOpacity={0.9}>
             <Ionicons name="library-outline" size={16} color={theme.text} />
             <Text style={styles.quickText}>{t("library")}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ✅ NEW row: Lawyer services quick actions */}
+        <View style={styles.quickRow}>
+          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/lawyers")} activeOpacity={0.9}>
+            <Ionicons name="people-outline" size={16} color={theme.text} />
+            <Text style={styles.quickText}>Lawyers</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/appointments")} activeOpacity={0.9}>
+            <Ionicons name="calendar-outline" size={16} color={theme.text} />
+            <Text style={styles.quickText}>My bookings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickBtn}
+            onPress={() => Alert.alert("Tip", "Book a verified lawyer and wait for approval notification.")}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="information-circle-outline" size={16} color={theme.text} />
+            <Text style={styles.quickText}>How it works</Text>
           </TouchableOpacity>
         </View>
 
@@ -478,7 +509,6 @@ function makeStyles(theme: any, s: number) {
     headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
     iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
 
-    // ✅ avatar button styles
     avatarBtn: {
       width: 36,
       height: 36,
