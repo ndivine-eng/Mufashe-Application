@@ -1,5 +1,4 @@
 // app/(auth)/login.tsx
-
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -9,16 +8,20 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+
 import { loginUser } from "../lib/auth";
+import { useAppSettings } from "../lib/appSettings";
 
 export default function LoginScreen() {
-  // ===============================
-  // STATE
-  // ===============================
+  const { theme, scale } = useAppSettings();
+  const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
+
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -26,16 +29,10 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ===============================
-  // VALIDATION
-  // ===============================
   const canSubmit = useMemo(() => {
     return identifier.trim().length >= 3 && password.length >= 6 && !loading;
   }, [identifier, password, loading]);
 
-  // ===============================
-  // LOGIN HANDLER
-  // ===============================
   const onLogin = async () => {
     if (!canSubmit) return;
 
@@ -45,26 +42,13 @@ export default function LoginScreen() {
 
       const emailOrPhone = identifier.trim();
 
-      // ✅ Call backend login
-      const result = await loginUser({
-        emailOrPhone,
-        password,
-      });
+      const result = await loginUser({ emailOrPhone, password });
 
-      // ✅ Role-based navigation
       const role = String(result?.user?.role || "").toLowerCase();
-
-      if (role === "admin") {
-        router.replace("/(user)/admin-dashboard");
-      } else {
-        router.replace("/(user)/dashboard");
-      }
+      if (role === "admin") router.replace("/(user)/admin-dashboard");
+      else router.replace("/(user)/dashboard");
     } catch (e: any) {
-      setError(
-        e?.response?.data?.message ||
-          e?.message ||
-          "Login failed. Please try again."
-      );
+      setError(e?.response?.data?.message || e?.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -72,181 +56,206 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        {/* ===============================
-            HEADER / LOGO
-        =============================== */}
-        <View style={styles.header}>
-          <View style={styles.logoBox}>
-            <Image
-              source={require("../../assets/images/splash-icon.png")}
-              style={styles.logo}
-              resizeMode="contain"
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.container}>
+          {/* Top bar */}
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
+              <Ionicons name="chevron-back" size={20} color={theme.text} />
+            </TouchableOpacity>
+
+            <Text style={styles.topTitle}>Login</Text>
+
+            <View style={{ width: 38 }} />
+          </View>
+
+          {/* Header / Logo */}
+          <View style={styles.header}>
+            <View style={styles.logoBox}>
+              <Image
+                source={require("../../assets/images/splash-icon.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.tagline}>Empowering Justice through AI</Text>
+          </View>
+
+          <Text style={styles.title}>Secure Login</Text>
+
+          {/* Identifier */}
+          <Text style={styles.label}>EMAIL / PHONE / NAME</Text>
+          <View style={styles.inputWrap}>
+            <View style={styles.inputIconBox}>
+              <Ionicons name="person-outline" size={18} color={theme.textSub} />
+            </View>
+
+            <TextInput
+              style={styles.input}
+              placeholder="email, phone, or username"
+              placeholderTextColor={theme.textSub}
+              value={identifier}
+              onChangeText={setIdentifier}
+              autoCapitalize="none"
             />
           </View>
-          <Text style={styles.tagline}>Empowering Justice through AI</Text>
-        </View>
 
-        <Text style={styles.title}>Secure Login</Text>
+          {/* Password */}
+          <Text style={styles.label}>PASSWORD</Text>
+          <View style={styles.inputWrap}>
+            <View style={styles.inputIconBox}>
+              <Ionicons name="lock-closed-outline" size={18} color={theme.textSub} />
+            </View>
 
-        {/* ===============================
-            IDENTIFIER INPUT
-        =============================== */}
-        <Text style={styles.label}>EMAIL / PHONE / NAME</Text>
-        <View style={styles.inputWrap}>
-          <Feather name="user" size={16} color="#6B7280" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="email, phone, or username"
-            placeholderTextColor="#9CA3AF"
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-          />
-        </View>
-
-        {/* ===============================
-            PASSWORD INPUT
-        =============================== */}
-        <Text style={[styles.label, { marginTop: 14 }]}>PASSWORD</Text>
-        <View style={styles.inputWrap}>
-          <Feather name="lock" size={16} color="#6B7280" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#9CA3AF"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPass}
-          />
-
-          <TouchableOpacity
-            onPress={() => setShowPass((v) => !v)}
-            activeOpacity={0.8}
-          >
-            <Feather
-              name={showPass ? "eye-off" : "eye"}
-              size={18}
-              color="#6B7280"
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor={theme.textSub}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPass}
             />
+
+            <TouchableOpacity onPress={() => setShowPass((v) => !v)} style={styles.eyeBtn} activeOpacity={0.8}>
+              <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={18} color={theme.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Error */}
+          {error ? (
+            <View style={styles.errorRow}>
+              <Ionicons name="alert-circle-outline" size={16} color={theme.danger} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[styles.primaryBtn, !canSubmit && styles.primaryDisabled]}
+            onPress={onLogin}
+            disabled={!canSubmit}
+            activeOpacity={0.9}
+          >
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Login</Text>}
           </TouchableOpacity>
+
+          {/* Register link */}
+          <View style={styles.bottomRow}>
+            <Text style={styles.bottomText}>Don't have an account?</Text>
+            <TouchableOpacity onPress={() => router.push("/(auth)/Register")} activeOpacity={0.9}>
+              <Text style={styles.bottomLink}> Sign Up</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        {/* ===============================
-            ERROR
-        =============================== */}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {/* ===============================
-            LOGIN BUTTON
-        =============================== */}
-        <TouchableOpacity
-          style={[styles.primaryBtn, !canSubmit && styles.primaryDisabled]}
-          onPress={onLogin}
-          disabled={!canSubmit}
-          activeOpacity={0.9}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryText}>Login</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* ===============================
-            REGISTER LINK
-        =============================== */}
-        <View style={styles.bottomRow}>
-          <Text style={styles.bottomText}>Don't have an account?</Text>
-          <TouchableOpacity onPress={() => router.push("/(auth)/Register")}>
-            <Text style={styles.bottomLink}> Sign Up</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-// ===============================
-// STYLES
-// ===============================
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#ffffff" },
-  container: { flex: 1, paddingHorizontal: 22, paddingTop: 10 },
+function makeStyles(theme: any, s: number) {
+  const bg = theme?.bg ?? "#ffffff";
+  const card = theme?.card ?? bg;
+  const border = theme?.border ?? "#E5E7EB";
+  const muted = theme?.muted ?? "#F3F4F6";
+  const text = theme?.text ?? "#111827";
+  const textSub = theme?.textSub ?? "#6B7280";
+  const blue = theme?.blue ?? "#0F3D63";
+  const danger = theme?.danger ?? "#DC2626";
 
-  header: { alignItems: "center", marginTop: 6, marginBottom: 10 },
-  logoBox: {
-    width: 86,
-    height: 86,
-    borderRadius: 16,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logo: { width: 60, height: 60 },
-  tagline: { marginTop: 10, color: "#64748B", fontWeight: "600", fontSize: 13 },
+  return {
+    safe: { flex: 1, backgroundColor: bg },
+    container: { flex: 1, paddingHorizontal: 22, paddingTop: 8 },
 
-  title: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#111827",
-    textAlign: "center",
-    marginTop: 6,
-    marginBottom: 18,
-  },
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: muted,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    topTitle: { fontSize: 14 * s, fontWeight: "900", color: text },
 
-  label: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "800",
-    letterSpacing: 0.7,
-  },
+    header: { alignItems: "center", marginTop: 6, marginBottom: 10 },
+    logoBox: {
+      width: 86,
+      height: 86,
+      borderRadius: 16,
+      backgroundColor: muted,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: border,
+    },
+    logo: { width: 60, height: 60 },
+    tagline: { marginTop: 10, color: textSub, fontWeight: "700", fontSize: 13 * s },
 
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: "#F9FAFB",
-    marginTop: 8,
-  },
+    title: {
+      fontSize: 22 * s,
+      fontWeight: "900",
+      color: text,
+      textAlign: "center",
+      marginTop: 6,
+      marginBottom: 14,
+    },
 
-  icon: { marginRight: 8 },
+    label: { marginTop: 12, fontSize: 11 * s, color: textSub, fontWeight: "900", letterSpacing: 0.7 },
 
-  input: { flex: 1, fontSize: 14, color: "#111827" },
+    inputWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: border,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: card,
+      marginTop: 8,
+    },
+    inputIconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor: muted,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 10,
+    },
+    input: { flex: 1, fontSize: 14 * s, color: text },
 
-  error: {
-    marginTop: 8,
-    color: "#DC2626",
-    fontWeight: "700",
-    fontSize: 12,
-  },
+    eyeBtn: { paddingLeft: 10, paddingVertical: 2 },
 
-  primaryBtn: {
-    backgroundColor: "#0F3D63",
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    marginTop: 18,
-  },
+    errorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 12,
+      padding: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: danger,
+      backgroundColor: `${danger}10`,
+    },
+    errorText: { flex: 1, color: danger, fontWeight: "800", fontSize: 12 * s },
 
-  primaryDisabled: { opacity: 0.5 },
+    primaryBtn: {
+      backgroundColor: blue,
+      paddingVertical: 14,
+      borderRadius: 14,
+      alignItems: "center",
+      marginTop: 18,
+    },
+    primaryDisabled: { opacity: 0.55 },
+    primaryText: { color: "#ffffff", fontWeight: "900", fontSize: 15 * s },
 
-  primaryText: {
-    color: "#ffffff",
-    fontWeight: "900",
-    fontSize: 15,
-  },
-
-  bottomRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 16,
-  },
-
-  bottomText: { color: "#6B7280", fontWeight: "600" },
-  bottomLink: { color: "#16A34A", fontWeight: "900" },
-});
+    bottomRow: { flexDirection: "row", justifyContent: "center", marginTop: 16 },
+    bottomText: { color: textSub, fontWeight: "700" },
+    bottomLink: { color: theme?.blue ?? "#2563EB", fontWeight: "900" },
+  };
+}

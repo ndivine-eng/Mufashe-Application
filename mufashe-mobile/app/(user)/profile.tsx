@@ -1,4 +1,3 @@
-// app/(user)/profile.tsx
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -49,6 +48,7 @@ function pickContact(u: StoredUser | null) {
   return u.emailOrPhone?.trim() || u.email?.trim() || u.phone?.trim() || "";
 }
 
+// ✅ Key used to save/read the photo in AsyncStorage (Dashboard/Home must match this)
 function getUserPhotoKey(u: StoredUser | null) {
   if (!u) return null;
   const userKey = u.id || u._id || u.email || u.emailOrPhone;

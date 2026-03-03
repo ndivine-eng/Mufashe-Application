@@ -59,6 +59,15 @@ function pickDisplayName(u: StoredUser | null) {
   return "User";
 }
 
+//  MUST match ProfileScreen key logic so it reads the same saved photo
+function getUserPhotoKey(u: StoredUser | null) {
+  if (!u) return null;
+  const userKey = u.id || u._id || u.email || u.emailOrPhone;
+  if (!userKey) return null;
+  const safeKey = String(userKey).replace(/\s+/g, "_");
+  return `profile_photo_uri_${safeKey}`;
+}
+
 function normStatus(s?: string) {
   return String(s || "APPROVED").toUpperCase();
 }
@@ -118,6 +127,9 @@ export default function Dashboard() {
 
   const [displayName, setDisplayName] = useState("...");
   const [loadingUser, setLoadingUser] = useState(true);
+
+  //  profile photo state
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [recent, setRecent] = useState<RecentQuestion[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
@@ -212,6 +224,16 @@ export default function Dashboard() {
       }
 
       setDisplayName(pickDisplayName(user));
+
+      // ✅ load photo saved from ProfileScreen
+      const photoKey = getUserPhotoKey(user);
+      if (photoKey) {
+        const savedPhoto = await AsyncStorage.getItem(photoKey);
+        setPhotoUri(savedPhoto || null);
+      } else {
+        setPhotoUri(null);
+      }
+
       await loadCachedRecent();
       await loadRecent(true);
     } catch {
@@ -274,8 +296,13 @@ export default function Dashboard() {
               <Ionicons name="notifications-outline" size={18} color={theme.text} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(user)/profile")} activeOpacity={0.85}>
-              <Ionicons name="person-outline" size={18} color={theme.text} />
+            {/* ✅ Profile photo button */}
+            <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push("/(user)/profile")} activeOpacity={0.85}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.avatarThumb} />
+              ) : (
+                <Ionicons name="person-outline" size={18} color={theme.text} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -283,7 +310,12 @@ export default function Dashboard() {
         {/* Search */}
         <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(user)/consult")} style={styles.searchWrap}>
           <Ionicons name="search-outline" size={18} color={theme.textSub} style={{ marginRight: 8 }} />
-          <TextInput style={styles.searchInput} placeholder={t("askLegalQuestion")} placeholderTextColor={theme.textSub} editable={false} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={t("askLegalQuestion")}
+            placeholderTextColor={theme.textSub}
+            editable={false}
+          />
           <View style={styles.micBtn}>
             <Ionicons name="mic-outline" size={18} color={theme.blue} />
           </View>
@@ -445,6 +477,20 @@ function makeStyles(theme: any, s: number) {
 
     headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
     iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
+
+    // ✅ avatar button styles
+    avatarBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: theme.muted,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    avatarThumb: { width: "100%", height: "100%" },
 
     searchWrap: {
       flexDirection: "row",

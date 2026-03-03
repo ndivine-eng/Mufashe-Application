@@ -53,7 +53,7 @@ type QuestionRow = {
   createdAt?: string;
 };
 
-// ✅ You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
+//  You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
 
 // Safe join to avoid double slashes
@@ -122,7 +122,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // ✅ questions stats (optional)
+  //  questions stats (optional)
   const [pendingQuestions, setPendingQuestions] = useState(0);
 
   // per-document processing state
@@ -238,7 +238,7 @@ export default function AdminDashboard() {
     [protectAndLoad]
   );
 
-  // ✅ Process all UPLOADED/FAILED docs (frontend loop)
+  //  Process all UPLOADED/FAILED docs (frontend loop)
   const processAll = useCallback(async () => {
     try {
       const candidates = docs.filter((d) => {

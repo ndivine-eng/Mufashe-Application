@@ -1,5 +1,4 @@
 // app/(user)/library.tsx
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -17,6 +16,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomNav from "../../components/BottomNav";
+
+import { useAppSettings, Language } from "../lib/appSettings";
+import { useT } from "../lib/i18n";
 
 type Doc = {
   _id: string;
@@ -76,12 +78,13 @@ async function apiGetPublic(path: string) {
     },
   });
 
+  // IMPORTANT: read text first to avoid HTML showing in UI
   const text = await res.text();
   let data: any = {};
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    data = { message: text };
+    data = { message: text }; // if server returns HTML
   }
 
   if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
@@ -89,14 +92,18 @@ async function apiGetPublic(path: string) {
 }
 
 const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "land", label: "Land" },
-  { key: "labor", label: "Work" },
-  { key: "family", label: "Family" },
-  { key: "business", label: "Business" },
+  { key: "all" },
+  { key: "land" },
+  { key: "labor" },
+  { key: "family" },
+  { key: "business" },
 ] as const;
 
 export default function LibraryScreen() {
+  const { theme, scale, settings, updateSettings } = useAppSettings();
+  const t = useT();
+  const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
+
   const params = useLocalSearchParams();
   const presetRaw = typeof params?.category === "string" ? params.category : "all";
 
@@ -104,7 +111,6 @@ export default function LibraryScreen() {
   const preset =
     presetRaw === "civil" ? "business" : presetRaw === "employment" ? "labor" : presetRaw;
 
-  const [lang, setLang] = useState<"English" | "Kinyarwanda">("English");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<string>(preset);
 
@@ -114,6 +120,19 @@ export default function LibraryScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const debounceRef = useRef<any>(null);
+
+  const filterLabel = useCallback(
+    (key: string) => {
+      const lang = settings.language;
+      if (key === "all") return lang === "Kinyarwanda" ? "Byose" : "All";
+      if (key === "land") return t("land");
+      if (key === "labor") return lang === "Kinyarwanda" ? "Umurimo" : "Work";
+      if (key === "family") return t("family");
+      if (key === "business") return t("business");
+      return key;
+    },
+    [settings.language, t]
+  );
 
   const queryPath = useMemo(() => {
     const cat = filter === "all" ? null : normalizeCategoryKey(filter);
@@ -136,7 +155,9 @@ export default function LibraryScreen() {
       setItems(res?.items || []);
     } catch (e: any) {
       setItems([]);
-      setErrorMsg(e?.message || "Failed to load documents");
+      // If server returned HTML, show a clean message
+      const msg = String(e?.message || "Failed to load documents");
+      setErrorMsg(msg.includes("<!DOCTYPE") ? "Server error. Check API URL." : msg);
     } finally {
       setLoading(false);
     }
@@ -154,12 +175,10 @@ export default function LibraryScreen() {
     }
   }, [queryPath]);
 
-  // initial load on focus
   useEffect(() => {
     loadDocs();
   }, [loadDocs]);
 
-  // debounced reload for search/filter changes
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -175,10 +194,28 @@ export default function LibraryScreen() {
       pathname: "/(user)/consult",
       params: {
         documentId: doc._id,
-        category: doc.category, // useful if your consult screen supports it
+        category: doc.category,
       },
     });
   }, []);
+
+  const onSaved = useCallback(() => {
+    const msg =
+      settings.language === "Kinyarwanda"
+        ? "Kubika inyandiko biraje vuba."
+        : "Saved documents feature is next.";
+    Alert.alert(t("saved"), msg);
+  }, [settings.language, t]);
+
+  const pickLanguage = useCallback(
+    (lang: Language) => {
+      updateSettings({ language: lang });
+    },
+    [updateSettings]
+  );
+
+  const loadingDocsLabel =
+    settings.language === "Kinyarwanda" ? "Birimo gutegurwa inyandiko…" : "Loading documents…";
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -191,54 +228,50 @@ export default function LibraryScreen() {
           {/* Top bar */}
           <View style={styles.topBar}>
             <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
-              <Ionicons name="chevron-back" size={18} color="#111827" />
+              <Ionicons name="chevron-back" size={18} color={theme.text} />
             </TouchableOpacity>
 
-            <Text style={styles.title}>Library</Text>
+            <Text style={styles.title}>{t("library")}</Text>
 
-            <TouchableOpacity
-              onPress={() => Alert.alert("Saved", "Saved documents feature is next.")}
-              style={styles.iconBtn}
-              activeOpacity={0.9}
-            >
-              <Ionicons name="bookmark-outline" size={18} color="#111827" />
+            <TouchableOpacity onPress={onSaved} style={styles.iconBtn} activeOpacity={0.9}>
+              <Ionicons name="bookmark-outline" size={18} color={theme.text} />
             </TouchableOpacity>
           </View>
 
-          {/* Language segmented (UI only for now) */}
+          {/* Language pills (REAL) */}
           <View style={styles.segment}>
             <TouchableOpacity
-              style={[styles.segItem, lang === "English" && styles.segActive]}
-              onPress={() => setLang("English")}
+              style={[styles.segItem, settings.language === "English" && styles.segActive]}
+              onPress={() => pickLanguage("English")}
               activeOpacity={0.9}
             >
-              <Text style={[styles.segText, lang === "English" && styles.segTextActive]}>English</Text>
+              <Text style={[styles.segText, settings.language === "English" && styles.segTextActive]}>English</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.segItem, lang === "Kinyarwanda" && styles.segActive]}
-              onPress={() => Alert.alert("Coming soon", "Kinyarwanda library content will be added later.")}
+              style={[styles.segItem, settings.language === "Kinyarwanda" && styles.segActive]}
+              onPress={() => pickLanguage("Kinyarwanda")}
               activeOpacity={0.9}
             >
-              <Text style={[styles.segText, lang === "Kinyarwanda" && styles.segTextActive]}>Kinyarwanda</Text>
+              <Text style={[styles.segText, settings.language === "Kinyarwanda" && styles.segTextActive]}>Kinyarwanda</Text>
             </TouchableOpacity>
           </View>
 
           {/* Search */}
           <View style={styles.searchWrap}>
-            <Ionicons name="search-outline" size={18} color="#6B7280" style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={18} color={theme.textSub} style={{ marginRight: 8 }} />
             <TextInput
               value={q}
               onChangeText={setQ}
-              placeholder="Search laws, cases, contracts…"
-              placeholderTextColor="#9CA3AF"
+              placeholder={t("searchDocs")}
+              placeholderTextColor={theme.textSub}
               style={styles.searchInput}
               returnKeyType="search"
               onSubmitEditing={loadDocs}
             />
             {q.length > 0 && (
               <TouchableOpacity onPress={() => setQ("")} activeOpacity={0.8}>
-                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                <Ionicons name="close-circle" size={18} color={theme.textSub} />
               </TouchableOpacity>
             )}
           </View>
@@ -254,7 +287,7 @@ export default function LibraryScreen() {
                   onPress={() => setFilter(f.key)}
                   activeOpacity={0.9}
                 >
-                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{f.label}</Text>
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{filterLabel(f.key)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -262,17 +295,19 @@ export default function LibraryScreen() {
 
           {/* Section header */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Documents</Text>
+            <Text style={styles.sectionTitle}>{t("documents")}</Text>
             <Text style={styles.sectionSub}>{items.length} items</Text>
           </View>
 
           {/* Error */}
           {errorMsg ? (
             <View style={styles.errorCard}>
-              <Ionicons name="alert-circle-outline" size={18} color="#B91C1C" />
-              <Text style={styles.errorText}>{errorMsg}</Text>
+              <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
+              <Text style={styles.errorText} numberOfLines={3}>
+                {errorMsg}
+              </Text>
               <TouchableOpacity style={styles.retryBtn} onPress={loadDocs} activeOpacity={0.9}>
-                <Text style={styles.retryText}>Retry</Text>
+                <Text style={styles.retryText}>{t("retry")}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -281,7 +316,7 @@ export default function LibraryScreen() {
           {loading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator />
-              <Text style={styles.loadingLabel}>Loading documents…</Text>
+              <Text style={styles.loadingLabel}>{loadingDocsLabel}</Text>
             </View>
           ) : null}
 
@@ -289,9 +324,9 @@ export default function LibraryScreen() {
           <View style={{ marginTop: 10, gap: 12 }}>
             {!loading && items.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Ionicons name="folder-open-outline" size={18} color="#6B7280" />
-                <Text style={styles.emptyTitle}>No documents found</Text>
-                <Text style={styles.emptyText}>Try another category or search term.</Text>
+                <Ionicons name="folder-open-outline" size={18} color={theme.textSub} />
+                <Text style={styles.emptyTitle}>{t("noDocs")}</Text>
+                <Text style={styles.emptyText}>{t("tryAnother")}</Text>
               </View>
             ) : (
               items.map((d) => {
@@ -299,20 +334,20 @@ export default function LibraryScreen() {
                 return (
                   <TouchableOpacity
                     key={d._id}
-                    style={styles.guideCard}
+                    style={styles.docCard}
                     activeOpacity={0.9}
                     onPress={() => openAskAboutDoc(d)}
                   >
-                    <View style={[styles.guideIcon, { backgroundColor: `${tagColor}12` }]}>
+                    <View style={[styles.docIcon, { backgroundColor: `${tagColor}12` }]}>
                       <Ionicons name={docIcon(d.docType)} size={20} color={tagColor} />
                     </View>
 
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.guideTitle} numberOfLines={1}>
+                      <Text style={styles.docTitle} numberOfLines={1}>
                         {d.title}
                       </Text>
 
-                      <Text style={styles.guideDesc} numberOfLines={1}>
+                      <Text style={styles.docDesc} numberOfLines={1}>
                         {(d.docType || "OTHER").toUpperCase()} • {(d.jurisdiction || "Rwanda").toUpperCase()}
                       </Text>
 
@@ -320,18 +355,18 @@ export default function LibraryScreen() {
                         <View style={[styles.tag, { backgroundColor: `${tagColor}18` }]}>
                           <Text style={[styles.tagText, { color: tagColor }]}>{d.category}</Text>
                         </View>
-                        <Text style={styles.minutes}>READY</Text>
+                        <Text style={styles.statusText}>READY</Text>
                       </View>
                     </View>
 
-                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                    <Ionicons name="chevron-forward" size={18} color={theme.chevron} />
                   </TouchableOpacity>
                 );
               })
             )}
           </View>
 
-          <View style={{ height: 16 }} />
+          <View style={{ height: 92 }} />
         </ScrollView>
 
         <BottomNav />
@@ -340,143 +375,135 @@ export default function LibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#ffffff" },
-  container: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10 },
+function makeStyles(theme: any, s: number) {
+  const bg = theme?.bg ?? "#ffffff";
+  const card = theme?.card ?? bg;
+  const border = theme?.border ?? "#E5E7EB";
+  const muted = theme?.muted ?? "#F3F4F6";
+  const text = theme?.text ?? "#111827";
+  const textSub = theme?.textSub ?? "#6B7280";
+  const blue = theme?.blue ?? "#2563EB";
+  const danger = theme?.danger ?? "#DC2626";
+  const dangerBg = theme?.dangerBg ?? "#FEE2E2";
+  const chevron = theme?.chevron ?? "#9CA3AF";
 
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { fontSize: 14, fontWeight: "900", color: "#111827" },
+  return {
+    safe: { flex: 1, backgroundColor: bg },
+    container: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10 },
 
-  segment: {
-    flexDirection: "row",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 12,
-  },
-  segItem: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  segActive: { backgroundColor: "#ffffff" },
-  segText: { fontSize: 12, fontWeight: "800", color: "#6B7280" },
-  segTextActive: { color: "#2563EB" },
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
+    },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: muted,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    title: { fontSize: 14 * s, fontWeight: "900", color: text },
 
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: "#F9FAFB",
-  },
-  searchInput: { flex: 1, fontSize: 13, color: "#111827" },
+    segment: {
+      flexDirection: "row",
+      backgroundColor: muted,
+      borderRadius: 14,
+      padding: 4,
+      marginBottom: 12,
+    },
+    segItem: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center" },
+    segActive: { backgroundColor: card },
+    segText: { fontSize: 12 * s, fontWeight: "800", color: textSub },
+    segTextActive: { color: blue },
 
-  pillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, marginBottom: 14 },
-  pill: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: "#F3F4F6",
-  },
-  pillActive: { backgroundColor: "#2563EB" },
-  pillText: { fontSize: 12, fontWeight: "800", color: "#6B7280" },
-  pillTextActive: { color: "#ffffff" },
+    searchWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: border,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: card,
+    },
+    searchInput: { flex: 1, fontSize: 13 * s, color: text },
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    marginTop: 2,
-  },
-  sectionTitle: { fontSize: 14, fontWeight: "900", color: "#111827" },
-  sectionSub: { fontSize: 11, color: "#9CA3AF", fontWeight: "800" },
+    pillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, marginBottom: 14 },
+    pill: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: muted },
+    pillActive: { backgroundColor: blue },
+    pillText: { fontSize: 12 * s, fontWeight: "800", color: textSub },
+    pillTextActive: { color: "#ffffff" },
 
-  loadingBox: {
-    marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  loadingLabel: { color: "#6B7280", fontWeight: "800" },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      marginTop: 2,
+    },
+    sectionTitle: { fontSize: 14 * s, fontWeight: "900", color: text },
+    sectionSub: { fontSize: 11 * s, color: chevron, fontWeight: "800" },
 
-  errorCard: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  errorText: { flex: 1, color: "#7F1D1D", fontWeight: "800" },
-  retryBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "#B91C1C",
-  },
-  retryText: { color: "#fff", fontWeight: "900", fontSize: 12 },
+    loadingBox: {
+      marginTop: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      padding: 12,
+      borderRadius: 16,
+      backgroundColor: muted,
+      borderWidth: 1,
+      borderColor: border,
+    },
+    loadingLabel: { color: textSub, fontWeight: "800" },
 
-  emptyCard: {
-    marginTop: 6,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#fff",
-    padding: 14,
-    gap: 6,
-    alignItems: "center",
-  },
-  emptyTitle: { fontWeight: "900", color: "#111827" },
-  emptyText: { color: "#6B7280", fontWeight: "700", textAlign: "center" },
+    errorCard: {
+      marginTop: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      padding: 12,
+      borderRadius: 16,
+      backgroundColor: dangerBg,
+      borderWidth: 1,
+      borderColor: dangerBg,
+    },
+    errorText: { flex: 1, color: danger, fontWeight: "800" },
+    retryBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: danger },
+    retryText: { color: "#fff", fontWeight: "900", fontSize: 12 * s },
 
-  guideCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 18,
-    padding: 14,
-    backgroundColor: "#ffffff",
-  },
-  guideIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  guideTitle: { fontSize: 13, fontWeight: "900", color: "#111827" },
-  guideDesc: { fontSize: 11.5, color: "#6B7280", marginTop: 4, lineHeight: 16 },
+    emptyCard: {
+      marginTop: 6,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: border,
+      backgroundColor: card,
+      padding: 14,
+      gap: 6,
+      alignItems: "center",
+    },
+    emptyTitle: { fontWeight: "900", color: text },
+    emptyText: { color: textSub, fontWeight: "700", textAlign: "center" },
 
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
-  tag: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 },
-  tagText: { fontSize: 10, fontWeight: "900" },
-  minutes: { fontSize: 10.5, color: "#9CA3AF", fontWeight: "800" },
-});
+    docCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderWidth: 1,
+      borderColor: border,
+      borderRadius: 18,
+      padding: 14,
+      backgroundColor: card,
+    },
+    docIcon: { width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+    docTitle: { fontSize: 13 * s, fontWeight: "900", color: text },
+    docDesc: { fontSize: 11.5 * s, color: textSub, marginTop: 4, lineHeight: 16 },
+
+    metaRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
+    tag: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 },
+    tagText: { fontSize: 10 * s, fontWeight: "900" },
+    statusText: { fontSize: 10.5 * s, color: chevron, fontWeight: "800" },
+  };
+}
