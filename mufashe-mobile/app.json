@@ -24,6 +24,13 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#E6F4FE"
+      },
+      "package": "com.ndivineeng.mufashe"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7ea4ad9e-195e-420b-9875-e8c793e48a41"
       }
     }
   }

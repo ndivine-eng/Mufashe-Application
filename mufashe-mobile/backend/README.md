@@ -23,7 +23,7 @@ This repository contains the **Mission Capstone MVP**, demonstrating an end-to-e
 - **App Demonstration Video:** https://www.awesomescreenshot.com/video/50068486?key=b986318cf6c78e0426617e67a2c5317a  
 
 **Submission Links (Fill in before submitting)**
-- **Backend deployed link (Render):** `PASTE_HERE`
+- **Backend deployed link (Render):** `https://mufashe-application-2.onrender.com`
 - **Mobile APK / install link:** `PASTE_HERE`
 
 ---
@@ -318,7 +318,7 @@ Add the same variables as your backend `.env`:
 - (Optional) `OLLAMA_URL`, `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBED_MODEL`
 
 ### Step 4 — Deploy
-Click **Deploy**. After deployment, copy the live backend URL and paste it in:
+Click **Deploy**.https://mufashe-application-2.onrender.com
 - **Submission Links** section above
 
 ---
