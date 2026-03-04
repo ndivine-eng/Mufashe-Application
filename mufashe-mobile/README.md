@@ -22,8 +22,8 @@ This repository contains the **Mission Capstone MVP**, demonstrating an end-to-e
 - **Figma Design:** https://www.figma.com/design/mgGlpzgqEt5BiD0dJLD8Tx/Mufashe-Design?node-id=0-1&t=8Vh7ZhUxAWiIoY3D-1  
 - **App Demonstration Video:** https://www.awesomescreenshot.com/video/50068486?key=b986318cf6c78e0426617e67a2c5317a  
 
-**Submission Links (Fill in before submitting)**
-- **Backend deployed link (Render):** `https://mufashe-application-2.onrender.com/api`
+**Submission Links **
+- **Backend deployed link (Render):** https://mufashe-application-2.onrender.com/api
 - **Mobile APK / install link:** `PASTE_HERE`
 
 ---
