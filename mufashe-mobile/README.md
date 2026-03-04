@@ -14,7 +14,10 @@ This repository contains the **Mission Capstone MVP**, demonstrating an end-to-e
 
 ## Links
 - **GitHub Repository:** https://github.com/ndivine-eng/Mufahe-Application/tree/main/mufashe-mobile  
+
 - **Figma Design:** https://www.figma.com/design/mgGlpzgqEt5BiD0dJLD8Tx/Mufashe-Design?node-id=0-1&t=8Vh7ZhUxAWiIoY3D-1  
+
+
 - **Demo Videos (Loom):**
   - https://www.loom.com/share/25a122cf14d54224aa5181ea4a5a5498
   - https://www.loom.com/share/ee76e654f4ab45c896f58847d1e76f2c
