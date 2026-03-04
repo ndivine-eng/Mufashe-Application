@@ -1,0 +1,17 @@
+# never upload local deps
+node_modules/
+**/node_modules/
+.expo/
+.git/
+
+# you don't need backend in the APK build
+backend/
+
+# big local folders (if they exist)
+storage/
+data/
+tools/
+scripts/
+
+# logs
+*.log

@@ -23,7 +23,7 @@ This repository contains the **Mission Capstone MVP**, demonstrating an end-to-e
 - **App Demonstration Video:** https://www.awesomescreenshot.com/video/50068486?key=b986318cf6c78e0426617e67a2c5317a  
 
 **Submission Links (Fill in before submitting)**
-- **Backend deployed link (Render):** `https://mufashe-application-2.onrender.com`
+- **Backend deployed link (Render):** `https://mufashe-application-2.onrender.com/api`
 - **Mobile APK / install link:** `PASTE_HERE`
 
 ---
