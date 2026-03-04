@@ -397,7 +397,7 @@ export default function AdminDashboard() {
             onPress={() => router.push("/(user)/admin-upload")}
           >
             <Ionicons name="cloud-upload-outline" size={20} color="#1D4ED8" />
-            <Text style={styles.actionTitle}>Upload documents</Text>
+            <Text style={styles.actionTitle}>Upload legal law documents</Text>
             <Text style={styles.actionMeta}>PDF → Extract → Index</Text>
           </TouchableOpacity>
 

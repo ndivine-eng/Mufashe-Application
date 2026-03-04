@@ -182,7 +182,7 @@ export default function AdminUpload() {
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.header}>Upload Document</Text>
+        <Text style={styles.header}>Upload Legal law Document</Text>
 
         <Text style={styles.label}>TITLE</Text>
         <TextInput

@@ -36,6 +36,7 @@ type RecentQuestion = {
   _id: string;
   question: string;
   category?: string | null;
+  // status can still come from backend but we won't show it to user
   status?: "PENDING" | "APPROVED" | "REJECTED";
   createdAt?: string;
   updatedAt?: string;
@@ -67,17 +68,6 @@ function getUserPhotoKey(u: StoredUser | null) {
   if (!userKey) return null;
   const safeKey = String(userKey).replace(/\s+/g, "_");
   return `profile_photo_uri_${safeKey}`;
-}
-
-function normStatus(s?: string) {
-  return String(s || "APPROVED").toUpperCase();
-}
-
-function statusChipStyle(status?: RecentQuestion["status"]) {
-  const s = normStatus(status);
-  if (s === "APPROVED") return { bg: "#ECFDF3", border: "#A7F3D0", text: "#065F46" };
-  if (s === "REJECTED") return { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B" };
-  return { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" };
 }
 
 function safeCategoryLabel(cat?: string | null) {
@@ -300,12 +290,10 @@ export default function Dashboard() {
           </View>
 
           <View style={styles.headerRight}>
-            {/* ✅ Notifications now opens the real screen */}
             <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(user)/notifications")} activeOpacity={0.85}>
               <Ionicons name="notifications-outline" size={18} color={theme.text} />
             </TouchableOpacity>
 
-            {/* Profile photo button */}
             <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push("/(user)/profile")} activeOpacity={0.85}>
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.avatarThumb} />
@@ -348,7 +336,7 @@ export default function Dashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ NEW row: Lawyer services quick actions */}
+        {/* Lawyer services quick actions */}
         <View style={styles.quickRow}>
           <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/lawyers")} activeOpacity={0.9}>
             <Ionicons name="people-outline" size={16} color={theme.text} />
@@ -431,37 +419,31 @@ export default function Dashboard() {
               <Text style={{ marginLeft: 10, color: theme.textSub, fontWeight: "800" }}>{t("noRecent")}</Text>
             </View>
           ) : (
-            recent.map((r) => {
-              const chip = statusChipStyle(r.status);
-              return (
-                <TouchableOpacity
-                  key={r._id}
-                  style={styles.recentItem}
-                  activeOpacity={0.9}
-                  onPress={() => router.push({ pathname: "/(user)/question-details", params: { id: r._id } })}
-                >
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.text} />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.recentTitle} numberOfLines={1}>
-                      {r.question}
-                    </Text>
+            recent.map((r) => (
+              <TouchableOpacity
+                key={r._id}
+                style={styles.recentItem}
+                activeOpacity={0.9}
+                onPress={() => router.push({ pathname: "/(user)/question-details", params: { id: r._id } })}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.text} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.recentTitle} numberOfLines={1}>
+                    {r.question}
+                  </Text>
 
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
-                      <View style={styles.catChip}>
-                        <Text style={styles.catChipText}>{safeCategoryLabel(r.category)}</Text>
-                      </View>
-
-                      <View style={[styles.statusChip, { backgroundColor: chip.bg, borderColor: chip.border }]}>
-                        <Text style={[styles.statusChipText, { color: chip.text }]}>{normStatus(r.status)}</Text>
-                      </View>
+                  {/* ✅ Show only category (NO APPROVED/REJECTED/PENDING) */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                    <View style={styles.catChip}>
+                      <Text style={styles.catChipText}>{safeCategoryLabel(r.category)}</Text>
                     </View>
                   </View>
+                </View>
 
-                  <Text style={styles.recentMeta}>{prettyMeta(r.updatedAt || r.createdAt)}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={theme.chevron} />
-                </TouchableOpacity>
-              );
-            })
+                <Text style={styles.recentMeta}>{prettyMeta(r.updatedAt || r.createdAt)}</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.chevron} />
+              </TouchableOpacity>
+            ))
           )}
         </View>
 
@@ -573,9 +555,6 @@ function makeStyles(theme: any, s: number) {
 
     catChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.muted },
     catChipText: { fontSize: 10 * s, fontWeight: "900", color: theme.text },
-
-    statusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
-    statusChipText: { fontSize: 10 * s, fontWeight: "900" },
 
     helpCard: { marginTop: 14, borderRadius: 18, padding: 14, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
     helpIcon: { width: 34, height: 34, borderRadius: 14, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
