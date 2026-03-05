@@ -24,7 +24,8 @@ This repository contains the **Mission Capstone MVP**, demonstrating an end-to-e
 
 **Submission Links **
 - **Backend deployed link (Render):** https://mufashe-application-2.onrender.com/api
-- **Mobile APK / install link:** `PASTE_HERE`
+- **Mobile APK / install link:** https://expo.dev/accounts/ndivine-eng/projects/mufashe/builds/1e1261cd-0404-4a4b-b173-93a78d2f6a58
+  
 
 ---
 
