@@ -1,4 +1,5 @@
 // src/models/DocumentChunk.js
+// This file defines the Mongoose schema and model for document chunks, which are used to store the segmented parts of documents along with their embeddings for efficient retrieval and processing.
 const mongoose = require("mongoose");
 
 const DocumentChunkSchema = new mongoose.Schema(

@@ -1,4 +1,5 @@
 // app/(user)/appointments.tsx
+// This file implements the Appointments screen of the Mufashe mobile app, where users can view their booked appointments with lawyers. It fetches the user's appointments from the backend API, displays them in a list, and allows users to filter by upcoming or past appointments. Users can tap on an appointment to view its details in an alert dialog. The screen also handles loading states, error states, and provides options to refresh the list or book a new appointment if there are no existing bookings.
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -17,76 +18,199 @@ import { router } from "expo-router";
 import { useAppSettings } from "../lib/appSettings";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
+
 const joinUrl = (base: string, path: string) =>
   `${String(base).replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 
-// 🔧 Change this to your real backend endpoint for "my bookings/appointments"
-const APPOINTMENTS_ENDPOINT = "/appointments/mine"; // examples: "/appointments/mine" | "/appointments/my" | "/bookings/mine"
+const APPOINTMENT_ENDPOINTS = [
+  "/appointments/mine",
+  "/appointments/my",
+  "/bookings/mine",
+  "/bookings/my",
+  "/appointments",
+  "/bookings",
+];
 
 type AppointmentRow = {
   _id: string;
-
-  // lawyer info (different backends name differently)
   lawyerId?: string;
-  lawyer?: { _id?: string; name?: string };
+  lawyer?: {
+    _id?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    specialization?: string;
+  };
   lawyerName?: string;
-
-  // schedule info (different backends name differently)
+  startsAt?: string;
   scheduledAt?: string;
   startAt?: string;
+  endAt?: string;
   date?: string;
   time?: string;
-
-  status?: string; // PENDING/APPROVED/REJECTED/CANCELLED/COMPLETED...
+  reason?: string;
+  notes?: string;
+  topic?: string;
+  caseDescription?: string;
+  durationMin?: number;
+  duration?: number;
+  status?: string;
   createdAt?: string;
 };
 
+async function getToken() {
+  const token =
+    (await AsyncStorage.getItem("token")) ||
+    (await AsyncStorage.getItem("@auth_token")) ||
+    (await AsyncStorage.getItem("authToken"));
+
+  return token;
+}
+
 async function apiGet(path: string) {
-  const token = await AsyncStorage.getItem("token");
+  const token = await getToken();
+
   if (!token) {
     router.replace("/(auth)/login");
-    throw new Error("Missing token");
+    throw new Error("Please login first.");
   }
 
   const res = await fetch(joinUrl(BASE_URL, path), {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
   });
 
-  const text = await res.text();
+  const rawText = await res.text();
+
   let data: any = {};
   try {
-    data = text ? JSON.parse(text) : {};
+    data = rawText ? JSON.parse(rawText) : {};
   } catch {
-    data = { message: text };
+    data = { message: "Invalid server response" };
   }
 
-  if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const message = data?.message || data?.error || `Request failed (${res.status})`;
+    const error: any = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
   return data;
 }
 
-const FILTERS = ["ALL", "UPCOMING", "PAST"] as const;
-type Filter = (typeof FILTERS)[number];
+function extractList(res: any): AppointmentRow[] {
+  const list =
+    res?.items ||
+    res?.data ||
+    res?.appointments ||
+    res?.bookings ||
+    res?.results ||
+    [];
+
+  return Array.isArray(list) ? list : [];
+}
 
 function pickLawyerName(a: AppointmentRow) {
   return a.lawyerName || a.lawyer?.name || "Lawyer";
 }
 
 function pickWhen(a: AppointmentRow) {
-  const raw = a.scheduledAt || a.startAt || a.date || "";
-  const dt = raw ? new Date(raw) : null;
-  if (dt && !Number.isNaN(dt.getTime())) return dt;
+  const raw = a.startsAt || a.scheduledAt || a.startAt || a.date || "";
 
-  // fallback: if backend has date + time separated
+  if (raw) {
+    const dt = new Date(raw);
+    if (!Number.isNaN(dt.getTime())) return dt;
+  }
+
   if (a.date && a.time) {
     const dt2 = new Date(`${a.date} ${a.time}`);
     if (!Number.isNaN(dt2.getTime())) return dt2;
   }
+
   return null;
+}
+
+function pickDuration(a: AppointmentRow) {
+  return a.durationMin || a.duration || 30;
 }
 
 function normStatus(s?: string) {
   return String(s || "PENDING").toUpperCase();
 }
+
+function formatStatus(status?: string) {
+  const s = normStatus(status);
+  if (s === "APPROVED") return "Approved";
+  if (s === "REJECTED") return "Rejected";
+  if (s === "CANCELLED") return "Cancelled";
+  if (s === "COMPLETED") return "Completed";
+  if (s === "CONFIRMED") return "Confirmed";
+  if (s === "PENDING") return "Pending";
+  return s.charAt(0) + s.slice(1).toLowerCase();
+}
+
+function formatWhen(a: AppointmentRow) {
+  const when = pickWhen(a);
+  if (!when) return "Date not set";
+
+  try {
+    return when.toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return when.toLocaleString();
+  }
+}
+
+function statusColors(status: string, theme: any) {
+  const s = normStatus(status);
+
+  if (s === "APPROVED" || s === "CONFIRMED") {
+    return {
+      bg: "#DCFCE7",
+      border: "#86EFAC",
+      text: "#166534",
+    };
+  }
+
+  if (s === "PENDING") {
+    return {
+      bg: "#FEF3C7",
+      border: "#FCD34D",
+      text: "#92400E",
+    };
+  }
+
+  if (s === "REJECTED" || s === "CANCELLED") {
+    return {
+      bg: "#FEE2E2",
+      border: "#FCA5A5",
+      text: "#991B1B",
+    };
+  }
+
+  if (s === "COMPLETED") {
+    return {
+      bg: "#E0E7FF",
+      border: "#A5B4FC",
+      text: "#3730A3",
+    };
+  }
+
+  return {
+    bg: theme.muted,
+    border: theme.border,
+    text: theme.text,
+  };
+}
+
+const FILTERS = ["ALL", "UPCOMING", "PAST"] as const;
+type Filter = (typeof FILTERS)[number];
 
 export default function AppointmentsScreen() {
   const { theme, scale } = useAppSettings();
@@ -103,11 +227,40 @@ export default function AppointmentsScreen() {
       setErr(null);
       setLoading(true);
 
-      const res = await apiGet(APPOINTMENTS_ENDPOINT);
-      const list: AppointmentRow[] = res?.items || res?.data || res?.appointments || res?.bookings || [];
-      setItems(Array.isArray(list) ? list : []);
+      let found: AppointmentRow[] = [];
+      let success = false;
+      let lastError: any = null;
+
+      for (const endpoint of APPOINTMENT_ENDPOINTS) {
+        try {
+          const res = await apiGet(endpoint);
+          const list = extractList(res);
+
+          found = list;
+          success = true;
+          break;
+        } catch (e: any) {
+          lastError = e;
+
+          if (e?.status === 401) {
+            throw new Error("Your session expired. Please login again.");
+          }
+
+          if (e?.status === 403) {
+            throw new Error("You are not allowed to view bookings.");
+          }
+
+          continue;
+        }
+      }
+
+      if (!success) {
+        throw new Error(lastError?.message || "Failed to load bookings.");
+      }
+
+      setItems(found);
     } catch (e: any) {
-      setErr(e?.message || "Failed to load bookings");
+      setErr(e?.message || "Failed to load bookings.");
       setItems([]);
     } finally {
       setLoading(false);
@@ -133,29 +286,41 @@ export default function AppointmentsScreen() {
     if (filter === "ALL") return items;
 
     const now = new Date();
+
     return items.filter((a) => {
       const when = pickWhen(a);
       const st = normStatus(a.status);
 
       const definitelyPast = ["COMPLETED", "CANCELLED", "REJECTED"].includes(st);
-      if (filter === "PAST") return definitelyPast || (when ? when < now : false);
 
-      // UPCOMING:
+      if (filter === "PAST") {
+        return definitelyPast || (when ? when < now : false);
+      }
+
       if (definitelyPast) return false;
-      return when ? when >= now : true; // if unknown date, keep in upcoming
+      return when ? when >= now : true;
     });
   }, [items, filter]);
 
-  const prettyWhen = (a: AppointmentRow) => {
-    const when = pickWhen(a);
-    if (!when) return "Date not set";
-    return when.toLocaleString();
-  };
+  const openBooking = useCallback((a: AppointmentRow) => {
+    const lawyer = pickLawyerName(a);
+    const when = formatWhen(a);
+    const status = formatStatus(a.status);
+    const details =
+      a.reason || a.notes || a.topic || a.caseDescription || "No details provided";
+    const duration = pickDuration(a);
 
-  const openBooking = (a: AppointmentRow) => {
-    // You don't have booking-details.tsx yet, so we show a simple alert for now
-    Alert.alert("Booking", `${pickLawyerName(a)}\n${prettyWhen(a)}\nStatus: ${normStatus(a.status)}`);
-  };
+    Alert.alert(
+      "Booking details",
+      `Lawyer: ${lawyer}\nBooked time: ${when}\nDuration: ${duration} min\nStatus: ${status}\nDetails: ${details}`
+    );
+  }, []);
+
+  const renderEmptyText = useMemo(() => {
+    if (filter === "UPCOMING") return "No upcoming bookings yet.";
+    if (filter === "PAST") return "No past bookings yet.";
+    return "You have no bookings yet.";
+  }, [filter]);
 
   return (
     <View style={styles.screen}>
@@ -163,13 +328,14 @@ export default function AppointmentsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.85}>
           <Ionicons name="arrow-back" size={18} color={theme.text} />
         </TouchableOpacity>
+
         <Text style={styles.title}>My bookings</Text>
+
         <TouchableOpacity onPress={load} style={styles.iconBtn} activeOpacity={0.85}>
           <Ionicons name="refresh-outline" size={18} color={theme.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Filters */}
       <View style={styles.filterRow}>
         {FILTERS.map((f) => {
           const active = f === filter;
@@ -193,28 +359,42 @@ export default function AppointmentsScreen() {
         </View>
       ) : err ? (
         <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={20} color={theme.danger} />
-          <Text style={[styles.muted, { color: theme.danger }]}>{err}</Text>
-          <Text style={styles.mutedSmall}>If you see “Not Found”, update APPOINTMENTS_ENDPOINT in this file.</Text>
+          <Ionicons name="cloud-offline-outline" size={28} color={theme.textSub} />
+          <Text style={styles.emptyTitle}>Could not load bookings</Text>
+          <Text style={styles.muted}>{err}</Text>
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={load} activeOpacity={0.9}>
+            <Text style={styles.primaryBtnText}>Try again</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.primaryBtn}
+            style={styles.secondaryBtn}
             onPress={() => router.push("/(user)/lawyers")}
             activeOpacity={0.9}
           >
-            <Text style={styles.primaryBtnText}>Find a lawyer</Text>
+            <Text style={styles.secondaryBtnText}>Find a lawyer</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(x) => x._id}
+          keyExtractor={(x, index) => x._id || String(index)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          contentContainerStyle={{ padding: 16, gap: 10 }}
+          contentContainerStyle={[
+            styles.listContent,
+            filtered.length === 0 && styles.listContentEmpty,
+          ]}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Ionicons name="calendar-outline" size={20} color={theme.textSub} />
-              <Text style={styles.muted}>No bookings found.</Text>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="calendar-outline" size={24} color={theme.blue} />
+              </View>
+              <Text style={styles.emptyTitle}>{renderEmptyText}</Text>
+              <Text style={styles.muted}>
+                When you book a lawyer, your appointments will appear here.
+              </Text>
+
               <TouchableOpacity
                 style={styles.primaryBtn}
                 onPress={() => router.push("/(user)/lawyers")}
@@ -224,23 +404,54 @@ export default function AppointmentsScreen() {
               </TouchableOpacity>
             </View>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={() => openBooking(item)}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={18} color="#fff" />
+          renderItem={({ item }) => {
+            const colors = statusColors(item.status || "PENDING", theme);
+
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.9}
+                onPress={() => openBooking(item)}
+              >
+                <View style={styles.cardTop}>
+                  <View style={styles.avatar}>
+                    <Ionicons name="person" size={18} color="#fff" />
+                  </View>
+
+                  <View style={styles.cardMain}>
+                    <Text style={styles.name}>{pickLawyerName(item)}</Text>
+                    <Text style={styles.meta}>Booked time: {formatWhen(item)}</Text>
+                    <Text style={styles.meta}>Duration: {pickDuration(item)} min</Text>
+
+                    {!!(item.reason || item.notes || item.topic || item.caseDescription) && (
+                      <Text style={styles.reason} numberOfLines={2}>
+                        {item.reason || item.notes || item.topic || item.caseDescription}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View
+                    style={[
+                      styles.statusChip,
+                      {
+                        backgroundColor: colors.bg,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.statusChipText, { color: colors.text }]}>
+                      {formatStatus(item.status)}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{pickLawyerName(item)}</Text>
-                  <Text style={styles.meta}>{prettyWhen(item)}</Text>
+
+                <View style={styles.cardBottom}>
+                  <Text style={styles.viewMore}>Tap to view details</Text>
+                  <Ionicons name="chevron-forward" size={16} color={theme.blue} />
                 </View>
-                <View style={styles.statusChip}>
-                  <Text style={styles.statusChipText}>{normStatus(item.status)}</Text>
-                </View>
-              </View>
-              <Text style={styles.viewMore}>Tap to view →</Text>
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>
@@ -249,29 +460,58 @@ export default function AppointmentsScreen() {
 
 function makeStyles(theme: any, s: number) {
   return {
-    screen: { flex: 1, backgroundColor: theme.bg },
-    center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
-    muted: { color: theme.textSub, fontWeight: "800", textAlign: "center" },
-    mutedSmall: { color: theme.textSub, fontWeight: "700", textAlign: "center" },
+    screen: {
+      flex: 1,
+      backgroundColor: theme.bg,
+    },
+
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      padding: 20,
+    },
+
+    muted: {
+      color: theme.textSub,
+      fontWeight: "700",
+      textAlign: "center",
+      lineHeight: 20,
+    },
 
     topBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: 16,
+      paddingHorizontal: 16,
+      paddingTop: 16,
       paddingBottom: 8,
     },
-    title: { fontSize: 16 * s, fontWeight: "900", color: theme.text },
+
+    title: {
+      fontSize: 16 * s,
+      fontWeight: "900",
+      color: theme.text,
+    },
+
     iconBtn: {
-      width: 36,
-      height: 36,
+      width: 38,
+      height: 38,
       borderRadius: 12,
       backgroundColor: theme.muted,
       alignItems: "center",
       justifyContent: "center",
     },
 
-    filterRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+    filterRow: {
+      flexDirection: "row",
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingTop: 6,
+      paddingBottom: 10,
+    },
+
     filterChip: {
       flex: 1,
       paddingVertical: 10,
@@ -281,21 +521,152 @@ function makeStyles(theme: any, s: number) {
       backgroundColor: theme.card,
       alignItems: "center",
     },
-    filterChipActive: { backgroundColor: theme.blue, borderColor: theme.blue },
-    filterText: { fontWeight: "900", color: theme.text, fontSize: 11 * s },
-    filterTextActive: { color: "#fff" },
 
-    card: { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12 },
-    avatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#0F3D63", alignItems: "center", justifyContent: "center" },
-    name: { color: theme.text, fontWeight: "900", fontSize: 14 * s },
-    meta: { color: theme.textSub, fontWeight: "800", marginTop: 4 },
+    filterChipActive: {
+      backgroundColor: theme.blue,
+      borderColor: theme.blue,
+    },
 
-    statusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.muted },
-    statusChipText: { fontSize: 10 * s, fontWeight: "900", color: theme.text },
+    filterText: {
+      fontWeight: "900",
+      color: theme.text,
+      fontSize: 11 * s,
+    },
 
-    viewMore: { marginTop: 10, color: theme.blue, fontWeight: "900" },
+    filterTextActive: {
+      color: "#fff",
+    },
 
-    primaryBtn: { marginTop: 12, backgroundColor: theme.blue, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14 },
-    primaryBtnText: { color: "#fff", fontWeight: "900" },
+    listContent: {
+      padding: 16,
+      gap: 12,
+      paddingBottom: 100,
+    },
+
+    listContentEmpty: {
+      flexGrow: 1,
+    },
+
+    emptyIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 18,
+      backgroundColor: theme.muted,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 4,
+    },
+
+    emptyTitle: {
+      color: theme.text,
+      fontWeight: "900",
+      fontSize: 16 * s,
+      textAlign: "center",
+    },
+
+    card: {
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 18,
+      padding: 14,
+    },
+
+    cardTop: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+    },
+
+    cardMain: {
+      flex: 1,
+    },
+
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      backgroundColor: "#0F3D63",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 2,
+    },
+
+    name: {
+      color: theme.text,
+      fontWeight: "900",
+      fontSize: 14 * s,
+    },
+
+    meta: {
+      color: theme.textSub,
+      fontWeight: "800",
+      marginTop: 4,
+      lineHeight: 18,
+    },
+
+    reason: {
+      marginTop: 6,
+      color: theme.textSub,
+      fontWeight: "600",
+      lineHeight: 18,
+    },
+
+    statusChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: 1,
+      alignSelf: "flex-start",
+    },
+
+    statusChipText: {
+      fontSize: 10 * s,
+      fontWeight: "900",
+    },
+
+    cardBottom: {
+      marginTop: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+
+    viewMore: {
+      color: theme.blue,
+      fontWeight: "900",
+    },
+
+    primaryBtn: {
+      marginTop: 12,
+      backgroundColor: theme.blue,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 14,
+      minWidth: 150,
+      alignItems: "center",
+    },
+
+    primaryBtnText: {
+      color: "#fff",
+      fontWeight: "900",
+    },
+
+    secondaryBtn: {
+      marginTop: 2,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 14,
+      minWidth: 150,
+      alignItems: "center",
+    },
+
+    secondaryBtnText: {
+      color: theme.text,
+      fontWeight: "900",
+    },
   };
 }

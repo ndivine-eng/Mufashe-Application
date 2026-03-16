@@ -1,4 +1,5 @@
 // src/routes/document.routes.js
+// this file defines the Express routes for handling document-related operations, including uploading, processing, and managing legal documents in the system. It uses middleware for authentication, file uploads, and admin authorization to ensure secure access to these endpoints.
 const router = require("express").Router();
 
 const auth = require("../middleware/auth");

@@ -5,13 +5,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Switch,
   ScrollView,
   Alert,
   Modal,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,9 +27,19 @@ const RECENT_CACHE_KEY = "@mufashe_recent_questions_cache_v1";
 export default function SettingsScreen() {
   const { loading, settings, theme, scale, updateSettings, resetSettings } = useAppSettings();
   const t = useT();
+
   const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
 
+  const ACCENT = theme?.primary || theme?.blue || "#8B5CF6";
+
   const [fontModalOpen, setFontModalOpen] = useState(false);
+
+  const isDark = settings.themeMode === "dark";
+  const themeActionTitle = isDark ? "Switch to light mode" : "Switch to dark mode";
+  const themeActionSub = isDark
+    ? "Use a brighter appearance for better daytime visibility."
+    : "Enjoy a calmer look that is easier on the eyes at night.";
+  const themeActionIcon = isDark ? "sunny-outline" : "moon-outline";
 
   const pickFontSize = (size: FontSize) => {
     updateSettings({ fontSize: size });
@@ -76,8 +87,9 @@ export default function SettingsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: theme.textSub, fontWeight: "800" }}>{t("loadingSettings")}</Text>
+      <SafeAreaView style={[styles.safe, styles.center]}>
+        <ActivityIndicator size="large" color={ACCENT} />
+        <Text style={styles.loadingText}>{t("loadingSettings")}</Text>
       </SafeAreaView>
     );
   }
@@ -85,59 +97,106 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.screen}>
-        {/* Top Bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.85}>
-            <Ionicons name="chevron-back" size={20} color={theme.text} />
-          </TouchableOpacity>
-
-          <Text style={styles.topTitle}>{t("settings")}</Text>
-
-          <View style={{ width: 38 }} />
-        </View>
-
         <ScrollView
           contentContainerStyle={[styles.container, { paddingBottom: BOTTOM_NAV_SPACE }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* APPEARANCE */}
-          <Text style={styles.sectionLabel}>{t("appearance")}</Text>
+          {/* Top bar */}
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
+              <Ionicons name="chevron-back" size={20} color={theme.text} />
+            </TouchableOpacity>
+
+            <Text style={styles.topTitle}>{t("settings")}</Text>
+
+            <View style={styles.iconBtnGhost} />
+          </View>
+
+          {/* Hero */}
+          <View style={styles.heroCard}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="settings-outline" size={28} color={ACCENT} />
+            </View>
+
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle}>{t("settings")}</Text>
+              <Text style={styles.heroSub}>
+                Manage appearance, language, notifications, privacy, and app preferences.
+              </Text>
+            </View>
+          </View>
+
+          {/* Quick controls */}
+          <View style={styles.quickGrid}>
+            <TouchableOpacity
+              style={[styles.quickCard, styles.quickPrimary]}
+              activeOpacity={0.92}
+              onPress={() =>
+                updateSettings({
+                  themeMode: isDark ? "light" : "dark",
+                })
+              }
+            >
+              <Ionicons name={themeActionIcon as any} size={24} color="#fff" />
+              <Text style={styles.quickPrimaryTitle}>{themeActionTitle}</Text>
+              <Text style={styles.quickPrimarySub}>{themeActionSub}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.quickColumn}>
+              <TouchableOpacity
+                style={styles.quickMiniCard}
+                activeOpacity={0.92}
+                onPress={() => setFontModalOpen(true)}
+              >
+                <Ionicons name="text-outline" size={20} color={ACCENT} />
+                <Text style={styles.quickMiniTitle}>{t("fontSize")}</Text>
+                <Text style={styles.quickMiniSub}>{settings.fontSize}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.quickMiniCard} activeOpacity={0.92} onPress={onExportData}>
+                <Ionicons name="download-outline" size={20} color={ACCENT} />
+                <Text style={styles.quickMiniTitle}>{t("exportSettings")}</Text>
+                <Text style={styles.quickMiniSub}>Backup preferences</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Appearance */}
+          <SectionTitle title={t("appearance")} styles={styles} />
           <View style={styles.card}>
             <RowToggle
-              icon="moon-outline"
-              title={t("darkMode")}
-              subtitle={t("darkModeSub")}
-              value={settings.themeMode === "dark"}
+              icon={themeActionIcon as any}
+              title={themeActionTitle}
+              subtitle={themeActionSub}
+              value={isDark}
               onChange={(v) => updateSettings({ themeMode: v ? "dark" : "light" })}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
             <Divider styles={styles} />
-
             <RowRightText
               icon="text-outline"
               title={t("fontSize")}
               subtitle={t("fontSizeSub")}
               rightText={settings.fontSize}
               onPress={() => setFontModalOpen(true)}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
             <Divider styles={styles} />
-
             <RowToggle
               icon="contrast-outline"
               title={t("highContrast")}
               subtitle={t("highContrastSub")}
               value={settings.highContrast}
               onChange={(v) => updateSettings({ highContrast: v })}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
           </View>
 
-          {/* LANGUAGE */}
-          <Text style={styles.sectionLabel}>{t("language")}</Text>
+          {/* Language */}
+          <SectionTitle title={t("language")} styles={styles} />
           <View style={styles.card}>
             <RowPills
               icon="language-outline"
@@ -146,13 +205,13 @@ export default function SettingsScreen() {
               options={["English", "Kinyarwanda"]}
               value={settings.language}
               onPick={(v) => pickLanguage(v as Language)}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
           </View>
 
-          {/* NOTIFICATIONS */}
-          <Text style={styles.sectionLabel}>{t("notifications")}</Text>
+          {/* Notifications */}
+          <SectionTitle title={t("notifications")} styles={styles} />
           <View style={styles.card}>
             <RowToggle
               icon="notifications-outline"
@@ -160,8 +219,8 @@ export default function SettingsScreen() {
               subtitle={t("pushNotificationsSub")}
               value={settings.pushNotifications}
               onChange={(v) => updateSettings({ pushNotifications: v })}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
             <Divider styles={styles} />
             <RowToggle
@@ -170,21 +229,21 @@ export default function SettingsScreen() {
               subtitle={t("emailUpdatesSub")}
               value={settings.emailUpdates}
               onChange={(v) => updateSettings({ emailUpdates: v })}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
           </View>
 
-          {/* PRIVACY & DATA */}
-          <Text style={styles.sectionLabel}>{t("privacyData")}</Text>
+          {/* Privacy & data */}
+          <SectionTitle title={t("privacyData")} styles={styles} />
           <View style={styles.card}>
             <RowNav
               icon="download-outline"
               title={t("exportSettings")}
               subtitle={t("exportSettingsSub")}
               onPress={onExportData}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
             <Divider styles={styles} />
             <RowNav
@@ -193,21 +252,21 @@ export default function SettingsScreen() {
               subtitle={t("clearLocalCacheSub")}
               danger
               onPress={onClearLocalCache}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
           </View>
 
-          {/* ABOUT */}
-          <Text style={styles.sectionLabel}>{t("about")}</Text>
+          {/* About */}
+          <SectionTitle title={t("about")} styles={styles} />
           <View style={styles.card}>
             <RowNav
               icon="document-text-outline"
               title={t("terms")}
               subtitle={t("termsSub")}
               onPress={() => Alert.alert(t("comingSoonTitle"), t("termsSoonMsg"))}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
             <Divider styles={styles} />
             <RowNav
@@ -215,13 +274,13 @@ export default function SettingsScreen() {
               title={t("privacyPolicy")}
               subtitle={t("privacyPolicySub")}
               onPress={() => Alert.alert(t("comingSoonTitle"), t("privacySoonMsg"))}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
           </View>
 
-          {/* ADVANCED */}
-          <Text style={styles.sectionLabel}>{t("advanced")}</Text>
+          {/* Advanced */}
+          <SectionTitle title={t("advanced")} styles={styles} />
           <View style={styles.card}>
             <RowNav
               icon="refresh-outline"
@@ -229,8 +288,8 @@ export default function SettingsScreen() {
               subtitle={t("resetSettingsSub")}
               danger
               onPress={onReset}
-              theme={theme}
               styles={styles}
+              theme={theme}
             />
           </View>
 
@@ -247,11 +306,30 @@ export default function SettingsScreen() {
       <Modal visible={fontModalOpen} transparent animationType="fade" onRequestClose={() => setFontModalOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setFontModalOpen(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{t("chooseFontSize")}</Text>
 
-            <Option label="Small" active={settings.fontSize === "Small"} onPress={() => pickFontSize("Small")} styles={styles} theme={theme} />
-            <Option label="Default" active={settings.fontSize === "Default"} onPress={() => pickFontSize("Default")} styles={styles} theme={theme} />
-            <Option label="Large" active={settings.fontSize === "Large"} onPress={() => pickFontSize("Large")} styles={styles} theme={theme} />
+            <Option
+              label="Small"
+              active={settings.fontSize === "Small"}
+              onPress={() => pickFontSize("Small")}
+              styles={styles}
+              theme={theme}
+            />
+            <Option
+              label="Default"
+              active={settings.fontSize === "Default"}
+              onPress={() => pickFontSize("Default")}
+              styles={styles}
+              theme={theme}
+            />
+            <Option
+              label="Large"
+              active={settings.fontSize === "Large"}
+              onPress={() => pickFontSize("Large")}
+              styles={styles}
+              theme={theme}
+            />
           </Pressable>
         </Pressable>
       </Modal>
@@ -259,7 +337,11 @@ export default function SettingsScreen() {
   );
 }
 
-/* Components */
+/* ---------- Components ---------- */
+
+function SectionTitle({ title, styles }: { title: string; styles: any }) {
+  return <Text style={styles.sectionTitle}>{title}</Text>;
+}
 
 function Divider({ styles }: { styles: any }) {
   return <View style={styles.divider} />;
@@ -282,11 +364,13 @@ function RowToggle({
   styles: any;
   theme: any;
 }) {
+  const ACCENT = theme?.primary || theme?.blue || "#8B5CF6";
+
   return (
     <View style={styles.row}>
       <View style={styles.rowLeft}>
         <View style={styles.iconBox}>
-          <Ionicons name={icon} size={18} color={theme.text} />
+          <Ionicons name={icon} size={18} color={ACCENT} />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -298,7 +382,10 @@ function RowToggle({
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: theme.switchTrackOff, true: theme.switchTrackOn }}
+        trackColor={{
+          false: theme.switchTrackOff,
+          true: theme.switchTrackOn || ACCENT,
+        }}
         thumbColor={theme.switchThumb}
       />
     </View>
@@ -322,11 +409,13 @@ function RowNav({
   styles: any;
   theme: any;
 }) {
+  const ACCENT = theme?.primary || theme?.blue || "#8B5CF6";
+
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.rowLeft}>
         <View style={[styles.iconBox, danger && styles.iconBoxDanger]}>
-          <Ionicons name={icon} size={18} color={danger ? theme.danger : theme.text} />
+          <Ionicons name={icon} size={18} color={danger ? theme.danger : ACCENT} />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -357,11 +446,13 @@ function RowRightText({
   styles: any;
   theme: any;
 }) {
+  const ACCENT = theme?.primary || theme?.blue || "#8B5CF6";
+
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.rowLeft}>
         <View style={styles.iconBox}>
-          <Ionicons name={icon} size={18} color={theme.text} />
+          <Ionicons name={icon} size={18} color={ACCENT} />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -397,11 +488,13 @@ function RowPills({
   styles: any;
   theme: any;
 }) {
+  const ACCENT = theme?.primary || theme?.blue || "#8B5CF6";
+
   return (
     <View style={styles.row}>
-      <View style={styles.rowLeft}>
+      <View style={styles.rowLeftStart}>
         <View style={styles.iconBox}>
-          <Ionicons name={icon} size={18} color={theme.text} />
+          <Ionicons name={icon} size={18} color={ACCENT} />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -443,107 +536,371 @@ function Option({
   theme: any;
 }) {
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={[styles.optionRow, active && styles.optionRowActive]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.9}
+      style={[styles.optionRow, active && styles.optionRowActive]}
+    >
       <Text style={[styles.optionText, active && styles.optionTextActive]}>{label}</Text>
-      {active ? <Ionicons name="checkmark" size={18} color={theme.blue} /> : <View style={{ width: 18 }} />}
+      {active ? <Ionicons name="checkmark" size={18} color={theme.blue || theme.primary} /> : <View style={{ width: 18 }} />}
     </TouchableOpacity>
   );
 }
 
+/* ---------- Styles ---------- */
+
 function makeStyles(theme: any, s: number) {
+  const ACCENT = theme?.primary || theme?.blue || "#8B5CF6";
+  const ACCENT_SOFT = theme?.primarySoft || "#F3E8FF";
+  const CARD_BG = theme?.card || "#FFFFFF";
+  const BG = theme?.bg || "#F8F6FC";
+  const TEXT = theme?.text || "#1F2937";
+  const TEXT_SUB = theme?.textSub || "#6B7280";
+  const BORDER = theme?.border || "#E7E5EF";
+  const MUTED = theme?.muted || "#F3F1FA";
+  const DIVIDER = theme?.divider || "#EEEAF6";
+  const DANGER = theme?.danger || "#DC2626";
+  const DANGER_BG = theme?.dangerBg || "#FEE2E2";
+  const CHEVRON = theme?.chevron || "#A1A1AA";
+
   return {
-    safe: { flex: 1, backgroundColor: theme.bg },
-    screen: { flex: 1, backgroundColor: theme.bg },
+    safe: {
+      flex: 1,
+      backgroundColor: BG,
+    },
+
+    screen: {
+      flex: 1,
+      backgroundColor: BG,
+    },
+
+    center: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    loadingText: {
+      marginTop: 12,
+      color: TEXT_SUB,
+      fontWeight: "800",
+      fontSize: 14 * s,
+    },
+
+    container: {
+      paddingHorizontal: 18,
+      paddingTop: 8,
+      paddingBottom: 12,
+    },
 
     topBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.topBorder,
-      backgroundColor: theme.bg,
+      marginBottom: 16,
     },
+
     iconBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: theme.muted,
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: CARD_BG,
+      borderWidth: 1,
+      borderColor: BORDER,
       alignItems: "center",
       justifyContent: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
     },
-    topTitle: { fontSize: 14 * s, fontWeight: "900", color: theme.text },
 
-    container: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12 },
+    iconBtnGhost: {
+      width: 42,
+      height: 42,
+      opacity: 0,
+    },
 
-    sectionLabel: {
-      marginTop: 12,
-      marginBottom: 10,
-      fontSize: 11 * s,
-      color: theme.textSub,
+    topTitle: {
+      fontSize: 16 * s,
       fontWeight: "900",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
+      color: TEXT,
+      letterSpacing: -0.2,
+    },
+
+    heroCard: {
+      backgroundColor: CARD_BG,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: BORDER,
+      padding: 18,
+      marginBottom: 18,
+      flexDirection: "row",
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+    },
+
+    heroIconWrap: {
+      width: 62,
+      height: 62,
+      borderRadius: 20,
+      backgroundColor: ACCENT_SOFT,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 14,
+    },
+
+    heroTextWrap: {
+      flex: 1,
+    },
+
+    heroTitle: {
+      fontSize: 20 * s,
+      fontWeight: "900",
+      color: TEXT,
+      letterSpacing: -0.3,
+    },
+
+    heroSub: {
+      marginTop: 6,
+      fontSize: 12.5 * s,
+      color: TEXT_SUB,
+      fontWeight: "600",
+      lineHeight: 18,
+    },
+
+    quickGrid: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 20,
+    },
+
+    quickCard: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: BORDER,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    quickPrimary: {
+      flex: 1.15,
+      backgroundColor: ACCENT,
+      borderColor: ACCENT,
+      padding: 16,
+      minHeight: 132,
+      justifyContent: "space-between",
+    },
+
+    quickPrimaryTitle: {
+      marginTop: 10,
+      fontSize: 16 * s,
+      color: "#fff",
+      fontWeight: "900",
+    },
+
+    quickPrimarySub: {
+      marginTop: 6,
+      fontSize: 12 * s,
+      color: "rgba(255,255,255,0.84)",
+      fontWeight: "700",
+      lineHeight: 17,
+    },
+
+    quickColumn: {
+      flex: 1,
+      gap: 10,
+    },
+
+    quickMiniCard: {
+      flex: 1,
+      minHeight: 61,
+      backgroundColor: CARD_BG,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: BORDER,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 12,
+      gap: 4,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    quickMiniTitle: {
+      fontSize: 12 * s,
+      color: TEXT,
+      fontWeight: "900",
+      textAlign: "center",
+    },
+
+    quickMiniSub: {
+      fontSize: 10.8 * s,
+      color: TEXT_SUB,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+
+    sectionTitle: {
+      marginBottom: 10,
+      marginTop: 2,
+      fontSize: 18 * s,
+      fontWeight: "900",
+      color: TEXT,
+      letterSpacing: -0.2,
     },
 
     card: {
       borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 16,
-      backgroundColor: theme.card,
+      borderColor: BORDER,
+      borderRadius: 20,
+      backgroundColor: CARD_BG,
       overflow: "hidden",
+      marginBottom: 18,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
     },
 
     row: {
       paddingHorizontal: 14,
-      paddingVertical: 14,
+      paddingVertical: 15,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    rowLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, paddingRight: 10 },
+
+    rowLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      flex: 1,
+      paddingRight: 10,
+    },
+
+    rowLeftStart: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+      flex: 1,
+      paddingRight: 10,
+    },
 
     iconBox: {
-      width: 34,
-      height: 34,
-      borderRadius: 12,
-      backgroundColor: theme.muted,
+      width: 38,
+      height: 38,
+      borderRadius: 14,
+      backgroundColor: ACCENT_SOFT,
       alignItems: "center",
       justifyContent: "center",
     },
-    iconBoxDanger: { backgroundColor: theme.dangerBg },
 
-    rowTitle: { fontSize: 13 * s, fontWeight: "900", color: theme.text },
-    rowSub: { marginTop: 3, fontSize: 11.2 * s, color: theme.textSub, fontWeight: "700" },
+    iconBoxDanger: {
+      backgroundColor: DANGER_BG,
+    },
 
-    divider: { height: 1, backgroundColor: theme.divider },
+    rowTitle: {
+      fontSize: 13.5 * s,
+      fontWeight: "900",
+      color: TEXT,
+    },
 
-    rightWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
-    rightText: { fontSize: 12 * s, color: theme.textSub, fontWeight: "800" },
+    rowSub: {
+      marginTop: 4,
+      fontSize: 11.3 * s,
+      color: TEXT_SUB,
+      fontWeight: "700",
+      lineHeight: 16,
+    },
 
-    pillsRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
+    divider: {
+      height: 1,
+      backgroundColor: DIVIDER,
+      marginLeft: 64,
+    },
+
+    rightWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingLeft: 8,
+    },
+
+    rightText: {
+      fontSize: 12 * s,
+      color: TEXT_SUB,
+      fontWeight: "800",
+    },
+
+    pillsRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 12,
+      flexWrap: "wrap",
+    },
+
     pill: {
-      paddingVertical: 6,
-      paddingHorizontal: 10,
-      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 999,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.card,
+      borderColor: BORDER,
+      backgroundColor: CARD_BG,
     },
+
     pillActive: {
-      borderColor: theme.blue,
-      backgroundColor: theme.muted, // ✅ safe (no theme.chipBg dependency)
+      borderColor: `${ACCENT}35`,
+      backgroundColor: ACCENT_SOFT,
     },
-    pillText: { fontSize: 11 * s, fontWeight: "800", color: theme.textSub },
-    pillTextActive: { color: theme.blue },
 
-    dangerText: { color: theme.danger },
-    dangerSub: { color: theme.danger },
+    pillText: {
+      fontSize: 11 * s,
+      fontWeight: "800",
+      color: TEXT_SUB,
+    },
 
-    footer: { alignItems: "center", marginTop: 18, marginBottom: 6 },
-    footerTitle: { fontSize: 12 * s, fontWeight: "800", color: theme.textSub },
-    footerSub: { fontSize: 11 * s, fontWeight: "700", color: theme.chevron, marginTop: 4 },
+    pillTextActive: {
+      color: ACCENT,
+    },
+
+    dangerText: {
+      color: DANGER,
+    },
+
+    dangerSub: {
+      color: DANGER,
+    },
+
+    footer: {
+      alignItems: "center",
+      marginTop: 8,
+      marginBottom: 6,
+    },
+
+    footerTitle: {
+      fontSize: 12 * s,
+      fontWeight: "800",
+      color: TEXT_SUB,
+    },
+
+    footerSub: {
+      fontSize: 11 * s,
+      fontWeight: "700",
+      color: CHEVRON,
+      marginTop: 4,
+    },
 
     modalBackdrop: {
       flex: 1,
@@ -551,29 +908,58 @@ function makeStyles(theme: any, s: number) {
       justifyContent: "center",
       padding: 18,
     },
+
     modalCard: {
-      backgroundColor: theme.card,
-      borderRadius: 16,
+      backgroundColor: CARD_BG,
+      borderRadius: 22,
       borderWidth: 1,
-      borderColor: theme.border,
-      padding: 14,
+      borderColor: BORDER,
+      padding: 16,
+      shadowColor: "#000",
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 6,
     },
+
+    modalHandle: {
+      width: 44,
+      height: 5,
+      borderRadius: 999,
+      backgroundColor: DIVIDER,
+      alignSelf: "center",
+      marginBottom: 14,
+    },
+
     modalTitle: {
-      fontSize: 14 * s,
+      fontSize: 15 * s,
       fontWeight: "900",
-      color: theme.text,
-      marginBottom: 10,
+      color: TEXT,
+      marginBottom: 12,
+      textAlign: "center",
     },
+
     optionRow: {
-      paddingVertical: 12,
-      paddingHorizontal: 12,
-      borderRadius: 12,
+      paddingVertical: 13,
+      paddingHorizontal: 14,
+      borderRadius: 14,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    optionRowActive: { backgroundColor: theme.muted },
-    optionText: { fontSize: 13 * s, fontWeight: "800", color: theme.text },
-    optionTextActive: { color: theme.blue },
+
+    optionRowActive: {
+      backgroundColor: MUTED,
+    },
+
+    optionText: {
+      fontSize: 13.5 * s,
+      fontWeight: "800",
+      color: TEXT,
+    },
+
+    optionTextActive: {
+      color: ACCENT,
+    },
   };
 }

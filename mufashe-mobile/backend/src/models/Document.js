@@ -1,4 +1,5 @@
 // src/models/Document.js
+// This file defines the Mongoose schema and model for documents, which represent the uploaded legal documents in the system along with their metadata and processing status.
 const mongoose = require("mongoose");
 
 const DocumentSchema = new mongoose.Schema(
