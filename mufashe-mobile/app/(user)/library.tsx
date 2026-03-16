@@ -30,7 +30,7 @@ type Doc = {
   createdAt?: string;
 };
 
-// ✅ You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
+//  You keep /api in env (example: https://xxxx.ngrok-free.dev/api)
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api";
 
 function joinUrl(base: string, path: string) {

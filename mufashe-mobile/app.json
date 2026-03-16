@@ -6,9 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-
     "icon": "./assets/images/splash-icon.png",
-
     "plugins": [
       "expo-router",
       [
@@ -22,7 +20,6 @@
       "expo-web-browser",
       "@react-native-community/datetimepicker"
     ],
-
     "android": {
       "package": "com.ndivineeng.mufashe",
       "adaptiveIcon": {
@@ -30,11 +27,16 @@
         "backgroundColor": "#E6F4FE"
       }
     },
-
     "extra": {
       "router": {},
       "eas": {
         "projectId": "7ea4ad9e-195e-420b-9875-e8c793e48a41"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.ndivineeng.mufashe",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     }
   }

@@ -1,4 +1,5 @@
 // src/services/qa.service.js
+// This service handles the core logic of answering questions based on document chunks.
 const axios = require("axios");
 const mongoose = require("mongoose");
 

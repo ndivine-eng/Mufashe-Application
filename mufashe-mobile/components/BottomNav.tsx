@@ -1,5 +1,6 @@
+// This is the bottom navigation bar component for the app. It displays 5 tabs: Home, Ask, Library, Profile, and Settings.
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 
@@ -9,15 +10,41 @@ import { useT } from "../app/lib/i18n";
 type Tab = {
   key: "home" | "ask" | "library" | "profile" | "settings";
   icon: keyof typeof Ionicons.glyphMap;
+  activeIcon?: keyof typeof Ionicons.glyphMap;
   route: string;
 };
 
 const TABS: Tab[] = [
-  { key: "home", icon: "home-outline", route: "/(user)/dashboard" },
-  { key: "ask", icon: "chatbubble-ellipses-outline", route: "/(user)/consult" },
-  { key: "library", icon: "book-outline", route: "/(user)/library" },
-  { key: "profile", icon: "person-outline", route: "/(user)/profile" },
-  { key: "settings", icon: "settings-outline", route: "/(user)/settings" },
+  {
+    key: "home",
+    icon: "home-outline",
+    activeIcon: "home",
+    route: "/(user)/dashboard",
+  },
+  {
+    key: "ask",
+    icon: "chatbubble-ellipses-outline",
+    activeIcon: "chatbubble-ellipses",
+    route: "/(user)/consult",
+  },
+  {
+    key: "library",
+    icon: "book-outline",
+    activeIcon: "book",
+    route: "/(user)/library",
+  },
+  {
+    key: "profile",
+    icon: "person-outline",
+    activeIcon: "person",
+    route: "/(user)/profile",
+  },
+  {
+    key: "settings",
+    icon: "settings-outline",
+    activeIcon: "settings",
+    route: "/(user)/settings",
+  },
 ];
 
 function normalize(path: string) {
@@ -31,7 +58,6 @@ function isDarkHex(hex?: string) {
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
-  // relative luminance (simple)
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return lum < 140;
 }
@@ -45,15 +71,23 @@ export default function BottomNav() {
 
   const dark = isDarkHex(theme?.bg);
 
-  // ✅ Hard fallbacks so icons NEVER become black by default
   const inactiveIconColor =
     theme?.navIcon ??
     theme?.textSub ??
-    (dark ? "#CBD5E1" : "#6B7280");
+    (dark ? "#CBD5E1" : "#7C7C8A");
 
   const activeIconColor =
     theme?.navActiveIcon ??
     "#FFFFFF";
+
+  const activeColor =
+    theme?.primary ??
+    theme?.blue ??
+    "#8B5CF6";
+
+  const activeBgSoft =
+    theme?.primarySoft ??
+    "#F3E8FF";
 
   const labelFor = (key: Tab["key"]) => {
     if (key === "home") return "Home";
@@ -65,55 +99,107 @@ export default function BottomNav() {
   };
 
   return (
-    <View style={styles.container}>
-      {TABS.map((tab) => {
-        const tabPath = normalize(tab.route);
-        const isActive = pathname === tabPath || pathname.startsWith(tabPath + "/");
+    <View style={styles.outerWrap}>
+      <View style={styles.container}>
+        {TABS.map((tab) => {
+          const tabPath = normalize(tab.route);
+          const isActive = pathname === tabPath || pathname.startsWith(tabPath + "/");
 
-        return (
-          <TouchableOpacity
-            key={tab.route}
-            style={styles.tab}
-            activeOpacity={0.85}
-            onPress={() => router.replace(tab.route)}
-          >
-            <View style={[styles.iconWrapper, isActive && styles.activeIconWrapper]}>
-              <Ionicons
-                name={tab.icon}
-                size={isActive ? 24 : 20}
-                color={isActive ? activeIconColor : inactiveIconColor}
-              />
-            </View>
+          return (
+            <TouchableOpacity
+              key={tab.route}
+              style={styles.tab}
+              activeOpacity={0.88}
+              onPress={() => router.replace(tab.route)}
+            >
+              <View
+                style={[
+                  styles.tabInner,
+                  isActive && styles.activeTabInner,
+                  isActive && { backgroundColor: activeBgSoft },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    isActive && styles.activeIconWrapper,
+                    isActive && { backgroundColor: activeColor },
+                  ]}
+                >
+                  <Ionicons
+                    name={isActive ? (tab.activeIcon || tab.icon) : tab.icon}
+                    size={isActive ? 22 : 21}
+                    color={isActive ? activeIconColor : inactiveIconColor}
+                  />
+                </View>
 
-            <Text style={[styles.label, isActive && styles.activeLabel]}>
-              {labelFor(tab.key)}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+                <Text
+                  style={[
+                    styles.label,
+                    { color: isActive ? activeColor : inactiveIconColor },
+                    isActive && styles.activeLabel,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {labelFor(tab.key)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 function makeStyles(theme: any, s: number) {
-  const border = theme?.border ?? "#E5E7EB";
-  const bg = theme?.card ?? theme?.bg ?? "#ffffff";
-  const muted = theme?.muted ?? "#F3F4F6";
-  const blue = theme?.blue ?? "#2563EB";
-  const textSub = theme?.textSub ?? "#6B7280";
-  const chevron = theme?.chevron ?? textSub;
+  const border = theme?.border ?? "#E9E7F0";
+  const bg = theme?.card ?? "#FFFFFF";
+  const navBg = theme?.card ?? theme?.bg ?? "#FFFFFF";
 
   return {
-    container: {
-      borderTopWidth: 1,
-      borderTopColor: border,
-      backgroundColor: bg,
-      paddingVertical: 10,
-      paddingHorizontal: 8,
-      flexDirection: "row" as const,
-      justifyContent: "space-around" as const,
+    outerWrap: {
+      paddingHorizontal: 14,
+      paddingBottom: Platform.OS === "ios" ? 18 : 10,
+      paddingTop: 6,
+      backgroundColor: "transparent",
     },
-    tab: { alignItems: "center" as const, justifyContent: "center" as const },
+
+    container: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      justifyContent: "space-between" as const,
+      backgroundColor: navBg,
+      borderWidth: 1,
+      borderColor: border,
+      borderRadius: 28,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      shadowColor: "#000",
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 8,
+    },
+
+    tab: {
+      flex: 1,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+
+    tabInner: {
+      minWidth: 58,
+      borderRadius: 20,
+      paddingVertical: 6,
+      paddingHorizontal: 6,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
+
+    activeTabInner: {
+      paddingHorizontal: 10,
+    },
 
     iconWrapper: {
       width: 36,
@@ -123,22 +209,26 @@ function makeStyles(theme: any, s: number) {
       justifyContent: "center" as const,
       backgroundColor: "transparent",
     },
+
     activeIconWrapper: {
-      backgroundColor: blue,
-      width: 46,
-      height: 46,
-      borderRadius: 23,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      shadowColor: "#000",
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
     },
 
     label: {
-      fontSize: 11 * s,
-      fontWeight: "600" as const,
-      color: chevron,
+      fontSize: 11.5 * s,
+      fontWeight: "700" as const,
       marginTop: 4,
     },
+
     activeLabel: {
-      color: blue,
-      fontWeight: "800" as const,
+      fontWeight: "900" as const,
     },
   };
 }

@@ -268,7 +268,7 @@ EXPO_PUBLIC_API_URL=http://localhost:5000/api
 
 ### Step 4.3 — Start Expo
 ```bash
-npx expo start
+npx expo start --tunnel
 ```
 
 If you need network access from your phone:

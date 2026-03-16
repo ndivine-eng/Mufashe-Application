@@ -1,4 +1,5 @@
 // app/(user)/dashboard.tsx
+
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -36,7 +37,6 @@ type RecentQuestion = {
   _id: string;
   question: string;
   category?: string | null;
-  // status can still come from backend but we won't show it to user
   status?: "PENDING" | "APPROVED" | "REJECTED";
   createdAt?: string;
   updatedAt?: string;
@@ -61,7 +61,6 @@ function pickDisplayName(u: StoredUser | null) {
   return "User";
 }
 
-// MUST match ProfileScreen key logic so it reads the same saved photo
 function getUserPhotoKey(u: StoredUser | null) {
   if (!u) return null;
   const userKey = u.id || u._id || u.email || u.emailOrPhone;
@@ -106,20 +105,50 @@ export default function Dashboard() {
   const t = useT();
   const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
 
+  const ACCENT = theme?.primary || "#8B5CF6";
+  const ACCENT_SOFT = theme?.primarySoft || "#F3E8FF";
+  const CARD_BG = theme?.card || "#FFFFFF";
+  const TEXT = theme?.text || "#1F2937";
+  const TEXT_SUB = theme?.textSub || "#6B7280";
+  const BORDER = theme?.border || "#E5E7EB";
+  const MUTED = theme?.muted || "#F8F5FF";
+
   const categories = useMemo(
     () => [
-      { key: "family", title: t("family"), icon: "people-outline", bg: theme.muted },
-      { key: "land", title: t("land"), icon: "map-outline", bg: theme.muted },
-      { key: "labor", title: t("labor"), icon: "briefcase-outline", bg: theme.muted },
-      { key: "civil", title: t("business"), icon: "shield-checkmark-outline", bg: theme.muted },
+      {
+        key: "family",
+        title: t("family"),
+        subtitle: "Marriage, children",
+        icon: "people-outline",
+        color: "#A855F7",
+      },
+      {
+        key: "land",
+        title: t("land"),
+        subtitle: "Property, ownership",
+        icon: "map-outline",
+        color: "#7C3AED",
+      },
+      {
+        key: "labor",
+        title: t("labor"),
+        subtitle: "Jobs, contracts",
+        icon: "briefcase-outline",
+        color: "#9333EA",
+      },
+      {
+        key: "civil",
+        title: t("business"),
+        subtitle: "Rights, disputes",
+        icon: "shield-checkmark-outline",
+        color: "#8B5CF6",
+      },
     ],
-    [t, theme.muted]
+    [t]
   );
 
   const [displayName, setDisplayName] = useState("...");
   const [loadingUser, setLoadingUser] = useState(true);
-
-  // profile photo state
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [recent, setRecent] = useState<RecentQuestion[]>([]);
@@ -143,7 +172,9 @@ export default function Dashboard() {
 
       const y = new Date(now.getTime() - oneDay);
       const isYesterday =
-        d.getDate() === y.getDate() && d.getMonth() === y.getMonth() && d.getFullYear() === y.getFullYear();
+        d.getDate() === y.getDate() &&
+        d.getMonth() === y.getMonth() &&
+        d.getFullYear() === y.getFullYear();
       if (isYesterday) return t("yesterday");
 
       return d.toLocaleDateString();
@@ -214,7 +245,6 @@ export default function Dashboard() {
         return;
       }
 
-      // ✅ Role guard: keep admins/lawyers out of user dashboard
       const role = String(user.role || "user").toLowerCase();
       if (role === "admin") {
         router.replace("/(user)/admin-dashboard");
@@ -227,7 +257,6 @@ export default function Dashboard() {
 
       setDisplayName(pickDisplayName(user));
 
-      // load photo saved from ProfileScreen
       const photoKey = getUserPhotoKey(user);
       if (photoKey) {
         const savedPhoto = await AsyncStorage.getItem(photoKey);
@@ -263,7 +292,7 @@ export default function Dashboard() {
   if (loadingUser) {
     return (
       <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={ACCENT} />
         <Text style={styles.loadingText}>{t("loading")}</Text>
       </View>
     );
@@ -274,134 +303,173 @@ export default function Dashboard() {
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
       >
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <View style={styles.appIconBox}>
-              <Image source={require("../../assets/images/splash-icon.png")} style={styles.appIcon} resizeMode="contain" />
-            </View>
-
-            <View>
-              <Text style={styles.userName}>{t("hi", { name: displayName })}</Text>
-              <Text style={styles.subText}>{t("askLearnHelp")}</Text>
-            </View>
+        {/* Top Header */}
+        <View style={styles.header}>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.greeting}>{t("hi", { name: displayName })}</Text>
+            <Text style={styles.heroSubtext}>{t("askLearnHelp")}</Text>
           </View>
 
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/(user)/notifications")} activeOpacity={0.85}>
-              <Ionicons name="notifications-outline" size={18} color={theme.text} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push("/(user)/profile")} activeOpacity={0.85}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.avatarThumb} />
-              ) : (
-                <Ionicons name="person-outline" size={18} color={theme.text} />
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => router.push("/(user)/profile")}
+            activeOpacity={0.9}
+          >
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.profileImage} />
+            ) : (
+              <Ionicons name="person-outline" size={22} color={ACCENT} />
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Search */}
-        <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/(user)/consult")} style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color={theme.textSub} style={{ marginRight: 8 }} />
+        <TouchableOpacity
+          activeOpacity={0.92}
+          onPress={() => router.push("/(user)/consult")}
+          style={styles.searchBar}
+        >
+          <Ionicons name="search-outline" size={22} color={TEXT_SUB} />
           <TextInput
             style={styles.searchInput}
             placeholder={t("askLegalQuestion")}
-            placeholderTextColor={theme.textSub}
+            placeholderTextColor={TEXT_SUB}
             editable={false}
           />
-          <View style={styles.micBtn}>
-            <Ionicons name="mic-outline" size={18} color={theme.blue} />
+          <View style={styles.searchMic}>
+            <Ionicons name="mic-outline" size={20} color={ACCENT} />
           </View>
         </TouchableOpacity>
 
-        {/* Quick Actions */}
-        <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/consult")} activeOpacity={0.9}>
-            <Ionicons name="help-circle-outline" size={16} color={theme.text} />
-            <Text style={styles.quickText}>{t("ask")}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/history")} activeOpacity={0.9}>
-            <Ionicons name="time-outline" size={16} color={theme.text} />
-            <Text style={styles.quickText}>{t("history")}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/library")} activeOpacity={0.9}>
-            <Ionicons name="library-outline" size={16} color={theme.text} />
-            <Text style={styles.quickText}>{t("library")}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Lawyer services quick actions */}
-        <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/lawyers")} activeOpacity={0.9}>
-            <Ionicons name="people-outline" size={16} color={theme.text} />
-            <Text style={styles.quickText}>Lawyers</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickBtn} onPress={() => router.push("/(user)/appointments")} activeOpacity={0.9}>
-            <Ionicons name="calendar-outline" size={16} color={theme.text} />
-            <Text style={styles.quickText}>My bookings</Text>
+        {/* Main actions like screenshot */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.mainActionCard, styles.mainActionPrimary]}
+            onPress={() => router.push("/(user)/consult")}
+            activeOpacity={0.92}
+          >
+            <Ionicons name="help-circle-outline" size={26} color="#fff" />
+            <Text style={styles.mainActionPrimaryText}>{t("ask")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.quickBtn}
-            onPress={() => Alert.alert("Tip", "Book a verified lawyer and wait for approval notification.")}
-            activeOpacity={0.9}
+            style={styles.mainActionCard}
+            onPress={() => router.push("/(user)/history")}
+            activeOpacity={0.92}
           >
-            <Ionicons name="information-circle-outline" size={16} color={theme.text} />
-            <Text style={styles.quickText}>How it works</Text>
+            <Ionicons name="time-outline" size={24} color={ACCENT} />
+            <Text style={styles.mainActionText}>{t("history")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.mainActionCard}
+            onPress={() => router.push("/(user)/library")}
+            activeOpacity={0.92}
+          >
+            <Ionicons name="library-outline" size={24} color={ACCENT} />
+            <Text style={styles.mainActionText}>{t("library")}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Lawyer Services */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Lawyer services</Text>
+          <TouchableOpacity onPress={() => router.push("/(user)/lawyers")} activeOpacity={0.8}>
+            <Text style={styles.seeAllText}>See all</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.servicesRow}>
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => router.push("/(user)/lawyers")}
+            activeOpacity={0.92}
+          >
+            <View style={[styles.serviceIconWrap, { backgroundColor: ACCENT_SOFT }]}>
+              <Ionicons name="people-outline" size={28} color={ACCENT} />
+            </View>
+            <Text style={styles.serviceTitle}>Lawyers</Text>
+            <Text style={styles.serviceSub}>Find verified lawyers</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() => router.push("/(user)/appointments")}
+            activeOpacity={0.92}
+          >
+            <View style={[styles.serviceIconWrap, { backgroundColor: "#EEF2FF" }]}>
+              <Ionicons name="calendar-outline" size={28} color="#6366F1" />
+            </View>
+            <Text style={styles.serviceTitle}>My bookings</Text>
+            <Text style={styles.serviceSub}>Track appointments</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.serviceCard}
+            onPress={() =>
+              Alert.alert("How it works", "Book a verified lawyer and wait for approval notification.")
+            }
+            activeOpacity={0.92}
+          >
+            <View style={[styles.serviceIconWrap, { backgroundColor: "#FEF3C7" }]}>
+              <Ionicons name="information-circle-outline" size={28} color="#D97706" />
+            </View>
+            <Text style={styles.serviceTitle}>How it works</Text>
+            <Text style={styles.serviceSub}>Understand the process</Text>
           </TouchableOpacity>
         </View>
 
         {/* Categories */}
-        <View style={styles.sectionRow}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t("categories")}</Text>
-          <TouchableOpacity onPress={() => router.push("/(user)/library")} activeOpacity={0.8}>
-            <Ionicons name="chevron-forward" size={18} color={theme.blue} />
+          <TouchableOpacity
+            onPress={() => router.push("/(user)/library")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.seeAllText}>Browse</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.grid}>
+        <View style={styles.categoryGrid}>
           {categories.map((c) => (
             <TouchableOpacity
               key={c.key}
-              style={[styles.catCard, { backgroundColor: c.bg }]}
-              activeOpacity={0.9}
+              style={styles.categoryCard}
+              activeOpacity={0.92}
               onPress={() => router.push({ pathname: "/(user)/library", params: { category: c.key } })}
             >
-              <View style={styles.catIconBox}>
-                <Ionicons name={c.icon as any} size={20} color={theme.text} />
+              <View style={[styles.categoryIconBox, { backgroundColor: `${c.color}18` }]}>
+                <Ionicons name={c.icon as any} size={28} color={c.color} />
               </View>
-              <Text style={styles.catTitle}>{c.title}</Text>
+
+              <Text style={styles.categoryTitle}>{c.title}</Text>
+              <Text style={styles.categorySubtitle}>{c.subtitle}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Recent */}
-        <View style={[styles.sectionRow, { marginTop: 16 }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={[styles.sectionHeader, { marginTop: 4 }]}>
+          <View style={styles.sectionHeaderLeft}>
             <Text style={styles.sectionTitle}>{t("recent")}</Text>
-            {lastUpdated ? <Text style={styles.mutedTiny}>• {lastUpdated}</Text> : null}
+            {lastUpdated ? <Text style={styles.updatedText}>• {lastUpdated}</Text> : null}
           </View>
 
-          <TouchableOpacity onPress={() => loadRecent(true)} activeOpacity={0.8}>
-            <Ionicons name="refresh-outline" size={18} color={theme.blue} />
+          <TouchableOpacity onPress={() => loadRecent(true)} activeOpacity={0.8} style={styles.refreshButton}>
+            <Ionicons name="refresh-outline" size={18} color={ACCENT} />
           </TouchableOpacity>
         </View>
 
         {recentError ? (
           <View style={styles.errorCard}>
-            <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
+            <Ionicons name="alert-circle-outline" size={20} color="#DC2626" />
             <View style={{ flex: 1 }}>
               <Text style={styles.errorTitle}>Error</Text>
               <Text style={styles.errorText}>{recentError}</Text>
             </View>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => loadRecent(true)} activeOpacity={0.9}>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => loadRecent(true)} activeOpacity={0.92}>
               <Text style={styles.retryText}>{t("retry")}</Text>
             </TouchableOpacity>
           </View>
@@ -409,63 +477,79 @@ export default function Dashboard() {
 
         <View style={styles.recentList}>
           {loadingRecent ? (
-            <View style={[styles.recentItem, { justifyContent: "center" }]}>
-              <ActivityIndicator />
-              <Text style={{ marginLeft: 10, color: theme.textSub, fontWeight: "800" }}>{t("loadingRecent")}</Text>
+            <View style={styles.emptyStateCard}>
+              <ActivityIndicator color={ACCENT} />
+              <Text style={styles.emptyStateText}>{t("loadingRecent")}</Text>
             </View>
           ) : recent.length === 0 ? (
-            <View style={[styles.recentItem, { justifyContent: "center" }]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.textSub} />
-              <Text style={{ marginLeft: 10, color: theme.textSub, fontWeight: "800" }}>{t("noRecent")}</Text>
+            <View style={styles.emptyStateCard}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={TEXT_SUB} />
+              <Text style={styles.emptyStateText}>{t("noRecent")}</Text>
             </View>
           ) : (
             recent.map((r) => (
               <TouchableOpacity
                 key={r._id}
-                style={styles.recentItem}
-                activeOpacity={0.9}
+                style={styles.recentCard}
+                activeOpacity={0.92}
                 onPress={() => router.push({ pathname: "/(user)/question-details", params: { id: r._id } })}
               >
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.text} />
-                <View style={{ flex: 1, marginLeft: 10 }}>
+                <View style={styles.recentIconCircle}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={ACCENT} />
+                </View>
+
+                <View style={styles.recentContent}>
                   <Text style={styles.recentTitle} numberOfLines={1}>
                     {r.question}
                   </Text>
 
-                  {/* ✅ Show only category (NO APPROVED/REJECTED/PENDING) */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
-                    <View style={styles.catChip}>
-                      <Text style={styles.catChipText}>{safeCategoryLabel(r.category)}</Text>
+                  <View style={styles.recentBottomRow}>
+                    <View style={styles.categoryChip}>
+                      <Text style={styles.categoryChipText}>{safeCategoryLabel(r.category)}</Text>
                     </View>
+
+                    <Text style={styles.recentMeta}>{prettyMeta(r.updatedAt || r.createdAt)}</Text>
                   </View>
                 </View>
 
-                <Text style={styles.recentMeta}>{prettyMeta(r.updatedAt || r.createdAt)}</Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.chevron} />
+                <Ionicons name="chevron-forward" size={18} color="#B4B4C4" />
               </TouchableOpacity>
             ))
           )}
         </View>
 
         {/* Emergency */}
-        <View style={styles.helpCard}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-            <View style={styles.helpIcon}>
-              <Ionicons name="alert-circle" size={18} color="#fff" />
+        <View style={styles.emergencyCard}>
+          <View style={styles.emergencyLeft}>
+            <View style={styles.emergencyIcon}>
+              <Ionicons name="alert-circle" size={20} color="#fff" />
             </View>
+
             <View style={{ flex: 1 }}>
-              <Text style={styles.helpTitle}>{t("urgentHelp")}</Text>
-              <Text style={styles.helpText}>{t("nationalLegalAid")}</Text>
+              <Text style={styles.emergencyTitle}>{t("urgentHelp")}</Text>
+              <Text style={styles.emergencySubtitle}>{t("nationalLegalAid")}</Text>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.callBtn} onPress={() => Alert.alert("Call", "Add legal aid number later.")} activeOpacity={0.9}>
-            <Ionicons name="call-outline" size={18} color="#fff" />
+          <TouchableOpacity
+            style={styles.callButton}
+            onPress={() => Alert.alert("Call", "Add legal aid number later.")}
+            activeOpacity={0.92}
+          >
+            <Ionicons name="call-outline" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 16 }} />
+        <View style={{ height: 26 }} />
       </ScrollView>
+
+      <TouchableOpacity
+        style={styles.floatingNotify}
+        onPress={() => router.push("/(user)/notifications")}
+        activeOpacity={0.9}
+      >
+        <Ionicons name="notifications-outline" size={22} color="#fff" />
+      </TouchableOpacity>
 
       <BottomNav />
     </View>
@@ -473,94 +557,501 @@ export default function Dashboard() {
 }
 
 function makeStyles(theme: any, s: number) {
+  const ACCENT = theme?.primary || "#8B5CF6";
+  const ACCENT_SOFT = theme?.primarySoft || "#F3E8FF";
+  const CARD_BG = theme?.card || "#FFFFFF";
+  const BG = theme?.bg || "#F8F6FC";
+  const TEXT = theme?.text || "#1F2937";
+  const TEXT_SUB = theme?.textSub || "#6B7280";
+  const BORDER = theme?.border || "#E7E5EF";
+  const MUTED = theme?.muted || "#F3F1FA";
+  const DANGER = theme?.danger || "#DC2626";
+  const DANGER_BG = theme?.dangerBg || "#FEE2E2";
+
   return {
-    screen: { flex: 1, backgroundColor: theme.bg },
-    container: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 },
-    center: { alignItems: "center", justifyContent: "center" },
+    screen: {
+      flex: 1,
+      backgroundColor: BG,
+    },
 
-    loadingText: { marginTop: 10, color: theme.textSub, fontWeight: "800" },
+    container: {
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 100,
+    },
 
-    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-    appIconBox: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#0F3D63", alignItems: "center", justifyContent: "center" },
-    appIcon: { width: 22, height: 22 },
+    center: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
 
-    userName: { fontSize: 16 * s, fontWeight: "900", color: theme.text },
-    subText: { fontSize: 12 * s, color: theme.textSub, marginTop: 2 },
+    loadingText: {
+      marginTop: 12,
+      color: TEXT_SUB,
+      fontWeight: "800",
+      fontSize: 14 * s,
+    },
 
-    headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-    iconBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 18,
+    },
 
-    avatarBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: theme.muted,
+    headerTextWrap: {
+      flex: 1,
+      paddingRight: 12,
+    },
+
+    greeting: {
+      fontSize: 28 * s,
+      fontWeight: "900",
+      color: TEXT,
+      letterSpacing: -0.4,
+    },
+
+    heroSubtext: {
+      marginTop: 4,
+      fontSize: 13 * s,
+      color: TEXT_SUB,
+      fontWeight: "600",
+    },
+
+    profileButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: "#FFFFFF",
+      borderWidth: 1,
+      borderColor: BORDER,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
-      borderWidth: 1,
-      borderColor: theme.border,
+      shadowColor: "#000",
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
     },
-    avatarThumb: { width: "100%", height: "100%" },
 
-    searchWrap: {
+    profileImage: {
+      width: "100%",
+      height: "100%",
+    },
+
+    searchBar: {
       flexDirection: "row",
       alignItems: "center",
+      backgroundColor: "#FFFFFF",
+      borderRadius: 20,
+      paddingLeft: 14,
+      paddingRight: 10,
+      paddingVertical: 10,
       borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      backgroundColor: theme.card,
-      marginBottom: 12,
+      borderColor: BORDER,
+      marginBottom: 18,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
     },
-    searchInput: { flex: 1, fontSize: 13 * s, color: theme.text },
-    micBtn: { width: 38, height: 38, borderRadius: 14, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
 
-    quickRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-    quickBtn: {
+    searchInput: {
       flex: 1,
+      fontSize: 15 * s,
+      color: TEXT,
+      marginLeft: 10,
+      fontWeight: "600",
+    },
+
+    searchMic: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      backgroundColor: ACCENT_SOFT,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    actionsRow: {
       flexDirection: "row",
+      gap: 10,
+      marginBottom: 22,
+    },
+
+    mainActionCard: {
+      flex: 1,
+      minHeight: 82,
+      borderRadius: 18,
+      backgroundColor: CARD_BG,
+      borderWidth: 1,
+      borderColor: BORDER,
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.card,
-      borderRadius: 16,
-      paddingVertical: 12,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
     },
-    quickText: { fontWeight: "900", color: theme.text, fontSize: 12 * s },
 
-    sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-    sectionTitle: { fontSize: 14 * s, fontWeight: "900", color: theme.text },
-    mutedTiny: { fontSize: 10 * s, color: theme.chevron, fontWeight: "800" },
+    mainActionPrimary: {
+      backgroundColor: ACCENT,
+      borderColor: ACCENT,
+    },
 
-    grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12 },
-    catCard: { width: "48%", borderRadius: 18, padding: 12, minHeight: 94, borderWidth: 1, borderColor: theme.border, justifyContent: "center" },
-    catIconBox: { width: 38, height: 38, borderRadius: 14, backgroundColor: theme.card, alignItems: "center", justifyContent: "center", marginBottom: 10 },
-    catTitle: { fontSize: 13 * s, fontWeight: "900", color: theme.text },
+    mainActionText: {
+      fontSize: 14 * s,
+      fontWeight: "900",
+      color: TEXT,
+    },
 
-    errorCard: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 16, backgroundColor: theme.dangerBg, borderWidth: 1, borderColor: theme.dangerBg, marginBottom: 10 },
-    errorTitle: { color: theme.danger, fontWeight: "900" },
-    errorText: { color: theme.danger, fontWeight: "700", marginTop: 2 },
-    retryBtn: { backgroundColor: theme.danger, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-    retryText: { color: "#fff", fontWeight: "900", fontSize: 12 * s },
+    mainActionPrimaryText: {
+      fontSize: 14 * s,
+      fontWeight: "900",
+      color: "#fff",
+    },
 
-    recentList: { gap: 10 },
-    recentItem: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12, backgroundColor: theme.card },
-    recentTitle: { fontSize: 13 * s, fontWeight: "800", color: theme.text },
-    recentMeta: { fontSize: 11 * s, color: theme.textSub, marginRight: 8 },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 12,
+      marginTop: 2,
+    },
 
-    catChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.muted },
-    catChipText: { fontSize: 10 * s, fontWeight: "900", color: theme.text },
+    sectionHeaderLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      flex: 1,
+    },
 
-    helpCard: { marginTop: 14, borderRadius: 18, padding: 14, backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-    helpIcon: { width: 34, height: 34, borderRadius: 14, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
-    helpTitle: { fontSize: 13 * s, fontWeight: "900", color: theme.text },
-    helpText: { fontSize: 11 * s, color: theme.textSub, marginTop: 2 },
+    sectionTitle: {
+      fontSize: 18 * s,
+      fontWeight: "900",
+      color: TEXT,
+      letterSpacing: -0.2,
+    },
 
-    callBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+    seeAllText: {
+      color: ACCENT,
+      fontSize: 13 * s,
+      fontWeight: "800",
+    },
+
+    updatedText: {
+      color: TEXT_SUB,
+      fontSize: 11 * s,
+      fontWeight: "700",
+    },
+
+    refreshButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor: "#FFFFFF",
+      borderWidth: 1,
+      borderColor: BORDER,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    servicesRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 22,
+    },
+
+    serviceCard: {
+      flex: 1,
+      backgroundColor: CARD_BG,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: BORDER,
+      paddingVertical: 16,
+      paddingHorizontal: 12,
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    serviceIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 10,
+    },
+
+    serviceTitle: {
+      fontSize: 14 * s,
+      fontWeight: "900",
+      color: TEXT,
+      textAlign: "center",
+    },
+
+    serviceSub: {
+      fontSize: 11 * s,
+      color: TEXT_SUB,
+      textAlign: "center",
+      marginTop: 4,
+      lineHeight: 15,
+    },
+
+    categoryGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: 20,
+    },
+
+    categoryCard: {
+      width: "48%",
+      backgroundColor: CARD_BG,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: BORDER,
+      padding: 14,
+      minHeight: 132,
+      justifyContent: "space-between",
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    categoryIconBox: {
+      width: 54,
+      height: 54,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 12,
+    },
+
+    categoryTitle: {
+      fontSize: 15 * s,
+      fontWeight: "900",
+      color: TEXT,
+    },
+
+    categorySubtitle: {
+      marginTop: 4,
+      fontSize: 11 * s,
+      color: TEXT_SUB,
+      fontWeight: "600",
+      lineHeight: 15,
+    },
+
+    errorCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      padding: 14,
+      borderRadius: 16,
+      backgroundColor: DANGER_BG,
+      borderWidth: 1,
+      borderColor: DANGER_BG,
+      marginBottom: 12,
+    },
+
+    errorTitle: {
+      color: DANGER,
+      fontWeight: "900",
+      fontSize: 13 * s,
+    },
+
+    errorText: {
+      color: DANGER,
+      fontWeight: "700",
+      marginTop: 2,
+      fontSize: 12 * s,
+    },
+
+    retryBtn: {
+      backgroundColor: DANGER,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+    },
+
+    retryText: {
+      color: "#fff",
+      fontWeight: "900",
+      fontSize: 12 * s,
+    },
+
+    recentList: {
+      gap: 10,
+      marginBottom: 18,
+    },
+
+    recentCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: CARD_BG,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: BORDER,
+      padding: 14,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    recentIconCircle: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: ACCENT_SOFT,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+
+    recentContent: {
+      flex: 1,
+      marginRight: 8,
+    },
+
+    recentTitle: {
+      fontSize: 14 * s,
+      fontWeight: "800",
+      color: TEXT,
+      marginBottom: 8,
+    },
+
+    recentBottomRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+
+    recentMeta: {
+      fontSize: 11 * s,
+      color: TEXT_SUB,
+      fontWeight: "700",
+    },
+
+    categoryChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: MUTED,
+      borderWidth: 1,
+      borderColor: BORDER,
+      alignSelf: "flex-start",
+    },
+
+    categoryChipText: {
+      fontSize: 10 * s,
+      fontWeight: "900",
+      color: ACCENT,
+      letterSpacing: 0.4,
+    },
+
+    emptyStateCard: {
+      minHeight: 84,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: BORDER,
+      backgroundColor: CARD_BG,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 10,
+    },
+
+    emptyStateText: {
+      color: TEXT_SUB,
+      fontWeight: "800",
+      fontSize: 13 * s,
+    },
+
+    emergencyCard: {
+      backgroundColor: CARD_BG,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: BORDER,
+      padding: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      marginBottom: 6,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    emergencyLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      flex: 1,
+    },
+
+    emergencyIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: "#EF4444",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    emergencyTitle: {
+      fontSize: 14 * s,
+      fontWeight: "900",
+      color: TEXT,
+    },
+
+    emergencySubtitle: {
+      fontSize: 12 * s,
+      color: TEXT_SUB,
+      marginTop: 3,
+      fontWeight: "600",
+    },
+
+    callButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      backgroundColor: "#EF4444",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    floatingNotify: {
+      position: "absolute",
+      right: 18,
+      bottom: 88,
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor: ACCENT,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 6,
+    },
   };
 }

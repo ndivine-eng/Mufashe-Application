@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Image,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -48,7 +48,6 @@ function pickContact(u: StoredUser | null) {
   return u.emailOrPhone?.trim() || u.email?.trim() || u.phone?.trim() || "";
 }
 
-// ✅ Key used to save/read the photo in AsyncStorage (Dashboard/Home must match this)
 function getUserPhotoKey(u: StoredUser | null) {
   if (!u) return null;
   const userKey = u.id || u._id || u.email || u.emailOrPhone;
@@ -57,11 +56,23 @@ function getUserPhotoKey(u: StoredUser | null) {
   return `profile_photo_uri_${safeKey}`;
 }
 
+function getInitials(name: string) {
+  const parts = name.trim().split(" ").filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
 export default function ProfileScreen() {
   const { theme, scale } = useAppSettings();
   const t = useT();
 
   const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
+
+  const ACCENT = theme?.primary || "#8B5CF6";
+  const ACCENT_SOFT = theme?.primarySoft || "#F3E8FF";
+  const TEXT = theme?.text || "#1F2937";
+  const TEXT_SUB = theme?.textSub || "#6B7280";
 
   const [loadingUser, setLoadingUser] = useState(true);
   const [user, setUser] = useState<StoredUser | null>(null);
@@ -118,7 +129,7 @@ export default function ProfileScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.85,
+        quality: 0.9,
       });
 
       if (result.canceled) return;
@@ -155,6 +166,8 @@ export default function ProfileScreen() {
 
   const displayName = pickDisplayName(user);
   const contact = pickContact(user);
+  const initials = getInitials(displayName);
+  const roleLabel = user?.role ? String(user.role).toUpperCase() : "USER";
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -162,62 +175,129 @@ export default function ProfileScreen() {
         {/* Top bar */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
-            <Ionicons name="chevron-back" size={20} color={theme.text} />
+            <Ionicons name="chevron-back" size={20} color={TEXT} />
           </TouchableOpacity>
 
           <Text style={styles.topTitle}>{t("profile")}</Text>
 
-          <TouchableOpacity onPress={() => router.push("/(user)/settings")} style={styles.iconBtn} activeOpacity={0.9}>
-            <Ionicons name="settings-outline" size={20} color={theme.text} />
+          <TouchableOpacity
+            onPress={() => router.push("/(user)/settings")}
+            style={styles.iconBtn}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="settings-outline" size={20} color={TEXT} />
           </TouchableOpacity>
         </View>
 
-        {/* Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatarCircle}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-              ) : (
-                <Ionicons name="person" size={34} color={theme.textSub} />
-              )}
+        {/* Hero card */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={styles.avatarWrap}>
+              <View style={styles.avatarOuter}>
+                <View style={styles.avatarCircle}>
+                  {photoUri ? (
+                    <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={styles.avatarInitials}>{initials}</Text>
+                  )}
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.cameraBtn} onPress={onPickPhoto} activeOpacity={0.9}>
+                {photoLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="camera-outline" size={16} color="#fff" />
+                )}
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.editBtn} onPress={onPickPhoto} activeOpacity={0.85}>
-              {photoLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
+            <View style={styles.heroTextWrap}>
+              {loadingUser ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={ACCENT} />
+                  <Text style={styles.loadingText}>{t("loading")}</Text>
+                </View>
               ) : (
-                <Ionicons name="camera-outline" size={16} color="#fff" />
+                <>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.name}>{displayName}</Text>
+                    <View style={styles.roleBadge}>
+                      <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+                    </View>
+                  </View>
+
+                  {!!contact && <Text style={styles.contactText}>{contact}</Text>}
+
+                  <View style={styles.metaRow}>
+                    <View style={styles.metaPill}>
+                      <Ionicons name="shield-checkmark-outline" size={14} color={ACCENT} />
+                      <Text style={styles.metaPillText}>Verified account</Text>
+                    </View>
+
+                    <View style={styles.metaPill}>
+                      <Ionicons name="location-outline" size={14} color={ACCENT} />
+                      <Text style={styles.metaPillText}>Kigali, Rwanda</Text>
+                    </View>
+                  </View>
+                </>
               )}
-            </TouchableOpacity>
+            </View>
           </View>
 
-          {photoUri ? (
-            <TouchableOpacity onPress={onRemovePhoto} activeOpacity={0.85}>
-              <Text style={styles.removePhoto}>{t("removePhoto")}</Text>
+          <View style={styles.heroActions}>
+            <TouchableOpacity style={styles.secondaryAction} onPress={onPickPhoto} activeOpacity={0.9}>
+              <Ionicons name="image-outline" size={18} color={ACCENT} />
+              <Text style={styles.secondaryActionText}>Change photo</Text>
             </TouchableOpacity>
-          ) : null}
 
-          {loadingUser ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" />
-              <Text style={styles.meta}>{t("loading")}</Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.name}>{displayName}</Text>
-              {contact ? <Text style={styles.meta}>{contact}</Text> : null}
-
-              <View style={styles.metaRow}>
-                <Ionicons name="location-outline" size={14} color={theme.textSub} />
-                <Text style={styles.meta}>Kigali, Rwanda</Text>
-              </View>
-            </>
-          )}
+            {photoUri ? (
+              <TouchableOpacity style={styles.removeAction} onPress={onRemovePhoto} activeOpacity={0.9}>
+                <Ionicons name="trash-outline" size={18} color={theme?.danger || "#DC2626"} />
+                <Text style={styles.removeActionText}>{t("removePhoto")}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
-        {/* Account */}
-        <Text style={styles.sectionLabel}>{t("account")}</Text>
+        {/* Quick actions */}
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity
+            style={[styles.quickCard, styles.quickPrimary]}
+            activeOpacity={0.92}
+            onPress={() => router.push("/(user)/history")}
+          >
+            <Ionicons name="time-outline" size={24} color="#fff" />
+            <Text style={styles.quickPrimaryText}>{t("myQuestions")}</Text>
+            <Text style={styles.quickPrimarySub}>View previous activity</Text>
+          </TouchableOpacity>
+
+          <View style={styles.quickColumn}>
+            <TouchableOpacity
+              style={styles.quickMiniCard}
+              activeOpacity={0.92}
+              onPress={() => router.push("/(user)/settings")}
+            >
+              <Ionicons name="settings-outline" size={20} color={ACCENT} />
+              <Text style={styles.quickMiniText}>Settings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickMiniCard}
+              activeOpacity={0.92}
+              onPress={() => router.push("/(user)/library")}
+            >
+              <Ionicons name="library-outline" size={20} color={ACCENT} />
+              <Text style={styles.quickMiniText}>Library</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Account section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{t("account")}</Text>
+        </View>
+
         <View style={styles.card}>
           <RowNav
             icon="person-outline"
@@ -247,9 +327,34 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/* Support section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Support</Text>
+        </View>
+
+        <View style={styles.card}>
+          <RowNav
+            icon="help-circle-outline"
+            title="Help center"
+            subtitle="Get guidance on using Mufashe"
+            onPress={() => Alert.alert("Coming soon", "Help center will be added soon.")}
+            theme={theme}
+            styles={styles}
+          />
+          <Divider styles={styles} />
+          <RowNav
+            icon="document-text-outline"
+            title="Privacy & terms"
+            subtitle="Read policies and app information"
+            onPress={() => Alert.alert("Coming soon", "Privacy and terms will be added soon.")}
+            theme={theme}
+            styles={styles}
+          />
+        </View>
+
         {/* Sign out */}
-        <TouchableOpacity style={styles.signOut} onPress={onSignOut} activeOpacity={0.9}>
-          <Ionicons name="log-out-outline" size={18} color={theme.danger} />
+        <TouchableOpacity style={styles.signOut} onPress={onSignOut} activeOpacity={0.92}>
+          <Ionicons name="log-out-outline" size={18} color={theme?.danger || "#DC2626"} />
           <Text style={styles.signOutText}>{t("signOut")}</Text>
         </TouchableOpacity>
 
@@ -258,8 +363,6 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-/* ---------- Components ---------- */
 
 function Divider({ styles }: { styles: any }) {
   return <View style={styles.divider} />;
@@ -280,11 +383,13 @@ function RowNav({
   styles: any;
   theme: any;
 }) {
+  const ACCENT = theme?.primary || "#8B5CF6";
+
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.rowLeft}>
         <View style={styles.iconBox}>
-          <Ionicons name={icon} size={18} color={theme.text} />
+          <Ionicons name={icon} size={18} color={ACCENT} />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -293,94 +398,428 @@ function RowNav({
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={theme.chevron} />
+      <Ionicons name="chevron-forward" size={18} color={theme?.chevron || "#A1A1AA"} />
     </TouchableOpacity>
   );
 }
 
-/* ---------- Styles ---------- */
-
 function makeStyles(theme: any, s: number) {
+  const ACCENT = theme?.primary || "#8B5CF6";
+  const ACCENT_SOFT = theme?.primarySoft || "#F3E8FF";
+  const CARD_BG = theme?.card || "#FFFFFF";
+  const BG = theme?.bg || "#F8F6FC";
+  const TEXT = theme?.text || "#1F2937";
+  const TEXT_SUB = theme?.textSub || "#6B7280";
+  const BORDER = theme?.border || "#E7E5EF";
+  const MUTED = theme?.muted || "#F3F1FA";
+  const DANGER = theme?.danger || "#DC2626";
+  const DANGER_BG = theme?.dangerBg || "#FEE2E2";
+  const DIVIDER = theme?.divider || "#EEEAF6";
+  const CHEVRON = theme?.chevron || "#A1A1AA";
+
   return {
-    safe: { flex: 1, backgroundColor: theme.bg },
-    container: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 22 },
+    safe: {
+      flex: 1,
+      backgroundColor: BG,
+    },
 
-    topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-    iconBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
-    topTitle: { fontSize: 14 * s, fontWeight: "900", color: theme.text },
+    container: {
+      paddingHorizontal: 18,
+      paddingTop: 8,
+      paddingBottom: 30,
+    },
 
-    profileHeader: { alignItems: "center", marginTop: 12, marginBottom: 18 },
-    avatarWrap: { position: "relative", marginBottom: 10 },
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 16,
+    },
+
+    iconBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: CARD_BG,
+      borderWidth: 1,
+      borderColor: BORDER,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
+    },
+
+    topTitle: {
+      fontSize: 16 * s,
+      fontWeight: "900",
+      color: TEXT,
+      letterSpacing: -0.2,
+    },
+
+    heroCard: {
+      backgroundColor: CARD_BG,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: BORDER,
+      padding: 18,
+      marginBottom: 18,
+      shadowColor: "#000",
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+    },
+
+    heroTop: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+
+    avatarWrap: {
+      position: "relative",
+      marginRight: 14,
+    },
+
+    avatarOuter: {
+      width: 98,
+      height: 98,
+      borderRadius: 49,
+      backgroundColor: ACCENT_SOFT,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: `${ACCENT}25`,
+    },
 
     avatarCircle: {
-      width: 92,
-      height: 92,
-      borderRadius: 46,
-      backgroundColor: theme.muted,
+      width: 86,
+      height: 86,
+      borderRadius: 43,
+      backgroundColor: MUTED,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
-      borderWidth: 1,
-      borderColor: theme.border,
     },
-    avatarImage: { width: "100%", height: "100%" },
 
-    editBtn: {
+    avatarImage: {
+      width: "100%",
+      height: "100%",
+    },
+
+    avatarInitials: {
+      fontSize: 28 * s,
+      fontWeight: "900",
+      color: ACCENT,
+      letterSpacing: -0.3,
+    },
+
+    cameraBtn: {
       position: "absolute",
-      right: -2,
-      bottom: -2,
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: theme.blue,
+      right: 2,
+      bottom: 2,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: ACCENT,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
-      borderColor: theme.bg,
+      borderColor: CARD_BG,
     },
 
-    removePhoto: { marginTop: 6, fontSize: 12 * s, color: theme.danger, fontWeight: "800" },
+    heroTextWrap: {
+      flex: 1,
+    },
 
-    loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-    name: { fontSize: 18 * s, fontWeight: "900", color: theme.text, marginTop: 6 },
-    meta: { fontSize: 12 * s, color: theme.textSub, marginTop: 4, fontWeight: "600" },
-    metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+    loadingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
 
-    sectionLabel: {
-      marginTop: 14,
-      marginBottom: 10,
-      fontSize: 11 * s,
-      color: theme.textSub,
+    loadingText: {
+      color: TEXT_SUB,
+      fontWeight: "700",
+      fontSize: 13 * s,
+    },
+
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+
+    name: {
+      fontSize: 22 * s,
       fontWeight: "900",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
+      color: TEXT,
+      letterSpacing: -0.3,
     },
 
-    card: { borderWidth: 1, borderColor: theme.border, borderRadius: 16, backgroundColor: theme.card, overflow: "hidden" },
+    roleBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: ACCENT_SOFT,
+      borderWidth: 1,
+      borderColor: `${ACCENT}20`,
+    },
 
-    row: { paddingHorizontal: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    rowLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, paddingRight: 10 },
+    roleBadgeText: {
+      fontSize: 10 * s,
+      fontWeight: "900",
+      color: ACCENT,
+      letterSpacing: 0.5,
+    },
 
-    iconBox: { width: 34, height: 34, borderRadius: 12, backgroundColor: theme.muted, alignItems: "center", justifyContent: "center" },
-    rowTitle: { fontSize: 13 * s, fontWeight: "900", color: theme.text },
-    rowSub: { marginTop: 3, fontSize: 11.2 * s, color: theme.textSub, fontWeight: "700" },
+    contactText: {
+      marginTop: 6,
+      fontSize: 13 * s,
+      color: TEXT_SUB,
+      fontWeight: "700",
+    },
 
-    divider: { height: 1, backgroundColor: theme.divider },
+    metaRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 10,
+    },
+
+    metaPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: MUTED,
+      borderWidth: 1,
+      borderColor: BORDER,
+    },
+
+    metaPillText: {
+      fontSize: 11 * s,
+      color: TEXT_SUB,
+      fontWeight: "800",
+    },
+
+    heroActions: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 16,
+    },
+
+    secondaryAction: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: 16,
+      backgroundColor: MUTED,
+      borderWidth: 1,
+      borderColor: BORDER,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingHorizontal: 12,
+    },
+
+    secondaryActionText: {
+      fontSize: 13 * s,
+      color: TEXT,
+      fontWeight: "900",
+    },
+
+    removeAction: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: 16,
+      backgroundColor: DANGER_BG,
+      borderWidth: 1,
+      borderColor: DANGER_BG,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingHorizontal: 12,
+    },
+
+    removeActionText: {
+      fontSize: 13 * s,
+      color: DANGER,
+      fontWeight: "900",
+    },
+
+    quickActionsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 20,
+    },
+
+    quickCard: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: BORDER,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    quickPrimary: {
+      flex: 1.2,
+      backgroundColor: ACCENT,
+      padding: 16,
+      justifyContent: "space-between",
+      minHeight: 132,
+      borderColor: ACCENT,
+    },
+
+    quickPrimaryText: {
+      marginTop: 12,
+      fontSize: 16 * s,
+      color: "#fff",
+      fontWeight: "900",
+    },
+
+    quickPrimarySub: {
+      marginTop: 6,
+      fontSize: 12 * s,
+      color: "rgba(255,255,255,0.84)",
+      fontWeight: "700",
+      lineHeight: 17,
+    },
+
+    quickColumn: {
+      flex: 1,
+      gap: 10,
+    },
+
+    quickMiniCard: {
+      flex: 1,
+      backgroundColor: CARD_BG,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: BORDER,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      minHeight: 61,
+      paddingHorizontal: 12,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    quickMiniText: {
+      fontSize: 12 * s,
+      color: TEXT,
+      fontWeight: "900",
+    },
+
+    sectionHeader: {
+      marginBottom: 10,
+      marginTop: 2,
+    },
+
+    sectionTitle: {
+      fontSize: 18 * s,
+      fontWeight: "900",
+      color: TEXT,
+      letterSpacing: -0.2,
+    },
+
+    card: {
+      borderWidth: 1,
+      borderColor: BORDER,
+      borderRadius: 20,
+      backgroundColor: CARD_BG,
+      overflow: "hidden",
+      marginBottom: 18,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+
+    row: {
+      paddingHorizontal: 14,
+      paddingVertical: 15,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+
+    rowLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      flex: 1,
+      paddingRight: 10,
+    },
+
+    iconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: 14,
+      backgroundColor: ACCENT_SOFT,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    rowTitle: {
+      fontSize: 13.5 * s,
+      fontWeight: "900",
+      color: TEXT,
+    },
+
+    rowSub: {
+      marginTop: 4,
+      fontSize: 11.3 * s,
+      color: TEXT_SUB,
+      fontWeight: "700",
+      lineHeight: 16,
+    },
+
+    divider: {
+      height: 1,
+      backgroundColor: DIVIDER,
+      marginLeft: 64,
+    },
 
     signOut: {
-      marginTop: 16,
-      borderRadius: 14,
-      backgroundColor: theme.dangerBg,
-      paddingVertical: 14,
+      marginTop: 2,
+      borderRadius: 18,
+      backgroundColor: DANGER_BG,
+      paddingVertical: 15,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: theme.dangerBg,
+      borderColor: DANGER_BG,
       flexDirection: "row",
       gap: 10,
     },
-    signOutText: { color: theme.danger, fontWeight: "900", fontSize: 13 * s },
 
-    version: { marginTop: 12, textAlign: "center", color: theme.chevron, fontSize: 11 * s, fontWeight: "700" },
+    signOutText: {
+      color: DANGER,
+      fontWeight: "900",
+      fontSize: 13.5 * s,
+    },
+
+    version: {
+      marginTop: 14,
+      textAlign: "center",
+      color: CHEVRON,
+      fontSize: 11 * s,
+      fontWeight: "700",
+    },
   };
 }

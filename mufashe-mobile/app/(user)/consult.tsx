@@ -13,6 +13,7 @@ import {
   Alert,
   Keyboard,
   TouchableWithoutFeedback,
+  LayoutChangeEvent,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +25,7 @@ import { useAppSettings } from "../lib/appSettings";
 import { useT } from "../lib/i18n";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
+const CONSULT_CACHE_KEY = "@mufashe_consult_session_v1";
 
 function buildApiUrl(path: string) {
   const base = String(BASE_URL || "").replace(/\/$/, "");
@@ -40,7 +42,7 @@ type Source = {
 
 type Msg =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; sources?: Source[] };
+  | { id: string; role: "assistant"; text: string; sources?: Source[]; pending?: boolean };
 
 function safeParseJson(text: string) {
   try {
@@ -69,14 +71,18 @@ export default function Consult() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ keyboard-aware positioning for absolute input bar
   const [kbVisible, setKbVisible] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(108);
 
   const listRef = useRef<FlatList<Msg>>(null);
+  const NAV_HEIGHT = 84;
 
-  // If you know BottomNav height, keep it here (matches your old bottom: 74)
-  const NAV_HEIGHT = 74;
+  const scrollToBottom = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -85,7 +91,7 @@ export default function Consult() {
     const showSub = Keyboard.addListener(showEvent as any, (e) => {
       setKbVisible(true);
       setKbHeight(e?.endCoordinates?.height ?? 0);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 60);
+      setTimeout(() => scrollToBottom(true), 90);
     });
 
     const hideSub = Keyboard.addListener(hideEvent as any, () => {
@@ -97,7 +103,63 @@ export default function Consult() {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CONSULT_CACHE_KEY);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw);
+
+        if (Array.isArray(parsed?.messages)) {
+          setMessages(parsed.messages);
+        }
+
+        if (typeof parsed?.input === "string") {
+          setInput(parsed.input);
+        }
+
+        if (typeof parsed?.loading === "boolean") {
+          setLoading(parsed.loading);
+        }
+
+        setTimeout(() => scrollToBottom(false), 120);
+      } catch (e) {
+        console.log("Failed to load consult session", e);
+      }
+    };
+
+    loadSession();
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    const saveSession = async () => {
+      try {
+        const payload = {
+          messages,
+          input,
+          loading,
+          documentId: documentId || null,
+          category: category || null,
+          updatedAt: Date.now(),
+        };
+
+        await AsyncStorage.setItem(CONSULT_CACHE_KEY, JSON.stringify(payload));
+      } catch (e) {
+        console.log("Failed to save consult session", e);
+      }
+    };
+
+    saveSession();
+  }, [messages, input, loading, documentId, category]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => scrollToBottom(true), 80);
+    }
+  }, [messages, scrollToBottom]);
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
 
@@ -106,10 +168,18 @@ export default function Consult() {
     if (!q || loading) return;
 
     const userMsg: Msg = { id: String(Date.now()), role: "user", text: q };
+    const tempId = `temp-${Date.now()}`;
+    const pendingMsg: Msg = {
+      id: tempId,
+      role: "assistant",
+      text: "Thinking...",
+      pending: true,
+    };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg, pendingMsg]);
     setInput("");
     setLoading(true);
+    setTimeout(() => scrollToBottom(true), 50);
 
     try {
       const token = await AsyncStorage.getItem("token");
@@ -146,50 +216,132 @@ export default function Consult() {
       const answer = (data?.answer || data?.finalAnswer || "No answer.").toString();
       const sources: Source[] = Array.isArray(data?.sources) ? data.sources : [];
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now() + 1),
-          role: "assistant",
-          text: answer,
-          sources,
-        },
-      ]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? {
+                id: String(Date.now() + 1),
+                role: "assistant",
+                text: answer,
+                sources,
+              }
+            : m
+        )
+      );
 
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+      setTimeout(() => scrollToBottom(true), 100);
     } catch (e: any) {
       const msg = String(e?.message || "Unknown error");
-      setMessages((prev) => [
-        ...prev,
-        { id: String(Date.now() + 2), role: "assistant", text: `Error: ${msg}` },
-      ]);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? {
+                id: String(Date.now() + 2),
+                role: "assistant",
+                text: `Error: ${msg}`,
+              }
+            : m
+        )
+      );
     } finally {
       setLoading(false);
     }
-  }, [input, loading, documentId, category]);
+  }, [input, loading, documentId, category, scrollToBottom]);
+
+  const clearChat = useCallback(() => {
+    Alert.alert("Clear chat", "Do you want to remove this conversation?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: async () => {
+          setMessages([]);
+          setInput("");
+          setLoading(false);
+          try {
+            await AsyncStorage.removeItem(CONSULT_CACHE_KEY);
+          } catch (e) {
+            console.log("Failed to clear consult session", e);
+          }
+        },
+      },
+    ]);
+  }, []);
+
+  const handleComposerLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const nextHeight = Math.ceil(e.nativeEvent.layout.height);
+      if (nextHeight > 0 && Math.abs(nextHeight - composerHeight) > 6) {
+        setComposerHeight(nextHeight);
+      }
+    },
+    [composerHeight]
+  );
+
+  const inputBottom = kbVisible
+    ? Math.max(kbHeight - insets.bottom, 8)
+    : NAV_HEIGHT + 8;
+
+  const listBottomSpace =
+    composerHeight + (kbVisible ? 28 : NAV_HEIGHT + insets.bottom + 28);
 
   const renderItem = ({ item }: { item: Msg }) => {
     const isUser = item.role === "user";
 
     return (
-      <View style={[styles.msgRow, { justifyContent: isUser ? "flex-end" : "flex-start" }]}>
+      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowAi]}>
+        {!isUser && (
+          <View style={styles.aiAvatar}>
+            <Ionicons
+              name={item.pending ? "time-outline" : "sparkles-outline"}
+              size={18}
+              color="#8B5CF6"
+            />
+          </View>
+        )}
+
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          <Text style={[styles.msgText, isUser ? styles.userText : styles.aiText]}>{item.text}</Text>
+          {!isUser && (
+            <View style={styles.assistantTop}>
+              <Text style={styles.assistantName}>Mufashe AI</Text>
+              <Text style={styles.assistantHint}>
+                {item.pending ? "Preparing response..." : "Legal guidance assistant"}
+              </Text>
+            </View>
+          )}
+
+          <Text style={[styles.msgText, isUser ? styles.userText : styles.aiText]}>
+            {item.text}
+          </Text>
 
           {"sources" in item && item.sources?.length ? (
-            <View style={styles.sourcesBox}>
+            <View style={styles.sourcesCard}>
               <View style={styles.sourcesHeader}>
-                <Ionicons name="documents-outline" size={16} color={theme.text} />
-                <Text style={styles.sourcesTitle}>{t("sources")}:</Text>
+                <View style={styles.sourcesIconWrap}>
+                  <Ionicons name="document-text-outline" size={15} color="#8B5CF6" />
+                </View>
+                <Text style={styles.sourcesTitle}>{t("sources")}</Text>
               </View>
 
               {item.sources.slice(0, 6).map((s, idx) => (
-                <View key={`${String(s.n ?? idx)}-${idx}`} style={styles.sourceRow}>
-                  <Text style={styles.sourceIndex}>[{s.n ?? idx + 1}]</Text>
-                  <Text style={styles.sourceText} numberOfLines={2}>
-                    {s.title || "Document"}{" "}
-                    {s.pageStart != null ? `(p.${s.pageStart}-${s.pageEnd ?? s.pageStart})` : ""}
-                  </Text>
+                <View key={`${String(s.n ?? idx)}-${idx}`} style={styles.sourceItem}>
+                  <View style={styles.sourceBadge}>
+                    <Text style={styles.sourceBadgeText}>{s.n ?? idx + 1}</Text>
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sourceText} numberOfLines={2}>
+                      {s.title || "Document"}
+                    </Text>
+
+                    {s.pageStart != null ? (
+                      <Text style={styles.sourceMeta}>
+                        Page {s.pageStart}
+                        {s.pageEnd != null && s.pageEnd !== s.pageStart ? ` - ${s.pageEnd}` : ""}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
               ))}
             </View>
@@ -199,80 +351,149 @@ export default function Consult() {
     );
   };
 
-  // ✅ Dynamic bottom: if keyboard open -> sit above keyboard; else -> sit above BottomNav
-  const inputBottom = (kbVisible ? kbHeight : NAV_HEIGHT) + insets.bottom;
-
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          {/* Top bar */}
-          <View style={styles.topBar}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
-              <Ionicons name="chevron-back" size={20} color={theme.text} />
-            </TouchableOpacity>
+          <View style={styles.headerWrap}>
+            <View style={styles.topBar}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.topIconBtn}
+                activeOpacity={0.9}
+              >
+                <Ionicons name="chevron-back" size={20} color={theme.text} />
+              </TouchableOpacity>
 
-            <Text style={styles.title}>{t("consult")}</Text>
+              <View style={styles.titleWrap}>
+                <Text style={styles.title}>{t("consult")}</Text>
+                <Text style={styles.titleSub}>Ask legal questions and get guided answers</Text>
+              </View>
 
-            <TouchableOpacity onPress={() => setMessages([])} style={styles.iconBtn} activeOpacity={0.9}>
-              <Ionicons name="trash-outline" size={18} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Optional context pill */}
-          {documentId ? (
-            <View style={styles.contextPill}>
-              <Ionicons name="document-text-outline" size={16} color={theme.textSub} />
-              <Text style={styles.contextText} numberOfLines={1}>
-                {settingsHint(category)}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Messages */}
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(m) => m.id}
-            contentContainerStyle={[styles.listContent, { paddingBottom: 160 }]}
-            renderItem={renderItem}
-            keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          />
-
-          {/* Input */}
-          <View style={[styles.inputBar, { bottom: inputBottom }]}>
-            <View style={styles.inputWrap}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.textSub} />
-              <TextInput
-                value={input}
-                onChangeText={setInput}
-                placeholder={t("askLegalQuestion")}
-                placeholderTextColor={theme.textSub}
-                style={styles.input}
-                multiline
-                textAlignVertical="top" // ✅ important on Android so text stays visible
-                returnKeyType="send"
-                onSubmitEditing={() => {
-                  if (!Platform.OS.includes("ios")) send();
-                }}
-              />
+              <TouchableOpacity onPress={clearChat} style={styles.topIconBtn} activeOpacity={0.9}>
+                <Ionicons name="trash-outline" size={18} color={theme.text} />
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              onPress={send}
-              disabled={!canSend}
-              style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-              activeOpacity={0.9}
-            >
-              {loading ? <ActivityIndicator color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
-            </TouchableOpacity>
+            <View style={styles.heroCard}>
+              <View style={styles.heroLeft}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="shield-checkmark-outline" size={22} color="#8B5CF6" />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroTitle}>Describe your legal issue clearly</Text>
+                  <Text style={styles.heroText}>
+                    Ask about family, land, labor, rights, contracts, or legal procedures.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {documentId ? (
+              <View style={styles.contextPill}>
+                <Ionicons name="document-text-outline" size={16} color={theme.textSub} />
+                <Text style={styles.contextText} numberOfLines={1}>
+                  {settingsHint(category)}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
-          {/* ✅ Hide BottomNav while keyboard is open (so it doesn’t fight space / get covered) */}
+          <View style={styles.listWrap}>
+            <FlatList
+              ref={listRef}
+              data={messages}
+              keyExtractor={(m) => m.id}
+              renderItem={renderItem}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: listBottomSpace },
+              ]}
+              onContentSizeChange={() => scrollToBottom(false)}
+              ListEmptyComponent={
+                <View style={styles.emptyWrap}>
+                  <View style={styles.emptyIcon}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={28} color="#8B5CF6" />
+                  </View>
+
+                  <Text style={styles.emptyTitle}>Start your consultation</Text>
+                  <Text style={styles.emptyText}>
+                    Type your question below. Mufashe can help explain legal information in a simpler way.
+                  </Text>
+
+                  <View style={styles.suggestionRow}>
+                    <View style={styles.suggestionChip}>
+                      <Text style={styles.suggestionChipText}>Land dispute</Text>
+                    </View>
+                    <View style={styles.suggestionChip}>
+                      <Text style={styles.suggestionChipText}>Labor rights</Text>
+                    </View>
+                    <View style={styles.suggestionChip}>
+                      <Text style={styles.suggestionChipText}>Family law</Text>
+                    </View>
+                  </View>
+                </View>
+              }
+            />
+          </View>
+
+          <View
+            style={[styles.inputArea, { bottom: inputBottom }]}
+            onLayout={handleComposerLayout}
+          >
+            <View style={styles.inputShell}>
+              <View style={styles.inputTopRow}>
+                <View style={styles.inputIconWrap}>
+                  <Ionicons name="create-outline" size={18} color="#8B5CF6" />
+                </View>
+
+                <TextInput
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder={t("askLegalQuestion")}
+                  placeholderTextColor={theme.textSub}
+                  style={styles.input}
+                  multiline
+                  textAlignVertical="top"
+                  returnKeyType="send"
+                  blurOnSubmit={false}
+                  onFocus={() => setTimeout(() => scrollToBottom(true), 120)}
+                  onSubmitEditing={() => {
+                    if (Platform.OS !== "ios") send();
+                  }}
+                />
+              </View>
+
+              <View style={styles.inputFooter}>
+                <Text style={styles.inputHint}>
+                  {loading ? "Answer is loading..." : "Be specific for better answers"}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={send}
+                  disabled={!canSend}
+                  style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+                  activeOpacity={0.9}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="send" size={16} color="#fff" />
+                      <Text style={styles.sendText}>Send</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
           {!kbVisible ? <BottomNav /> : null}
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
@@ -286,42 +507,121 @@ export default function Consult() {
 }
 
 function makeStyles(theme: any, s: number) {
-  const bg = theme?.bg ?? "#ffffff";
-  const card = theme?.card ?? bg;
-  const border = theme?.border ?? "#E5E7EB";
-  const muted = theme?.muted ?? "#F3F4F6";
-  const text = theme?.text ?? "#111827";
+  const bg = theme?.bg ?? "#F8F6FC";
+  const card = theme?.card ?? "#FFFFFF";
+  const border = theme?.border ?? "#E7E5EF";
+  const muted = theme?.muted ?? "#F3F1FA";
+  const text = theme?.text ?? "#1F2937";
   const textSub = theme?.textSub ?? "#6B7280";
-  const blue = theme?.blue ?? "#0F3D63";
-  const chevron = theme?.chevron ?? "#9CA3AF";
+  const blue = theme?.primary ?? theme?.blue ?? "#8B5CF6";
 
   return {
-    safe: { flex: 1, backgroundColor: bg },
+    flex: {
+      flex: 1,
+    },
+
+    safe: {
+      flex: 1,
+      backgroundColor: bg,
+    },
+
+    headerWrap: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 8,
+      backgroundColor: bg,
+    },
 
     topBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 16,
-      paddingTop: 6,
-      paddingBottom: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: border,
-      backgroundColor: bg,
+      marginBottom: 14,
     },
-    iconBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: muted,
+
+    topIconBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: card,
+      borderWidth: 1,
+      borderColor: border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
+    },
+
+    titleWrap: {
+      flex: 1,
+      alignItems: "center",
+      paddingHorizontal: 10,
+    },
+
+    title: {
+      fontSize: 18 * s,
+      fontWeight: "900",
+      color: text,
+      letterSpacing: -0.2,
+    },
+
+    titleSub: {
+      marginTop: 2,
+      fontSize: 11.5 * s,
+      color: textSub,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+
+    heroCard: {
+      backgroundColor: card,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: border,
+      padding: 14,
+      shadowColor: "#000",
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+      marginBottom: 10,
+    },
+
+    heroLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+
+    heroIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      backgroundColor: "#F3E8FF",
       alignItems: "center",
       justifyContent: "center",
     },
-    title: { fontSize: 14 * s, fontWeight: "900", color: text },
+
+    heroTitle: {
+      fontSize: 14 * s,
+      fontWeight: "900",
+      color: text,
+      marginBottom: 4,
+    },
+
+    heroText: {
+      fontSize: 12 * s,
+      lineHeight: 18,
+      color: textSub,
+      fontWeight: "600",
+    },
 
     contextPill: {
-      marginHorizontal: 16,
-      marginTop: 10,
+      alignSelf: "flex-start",
+      marginTop: 2,
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderRadius: 999,
@@ -331,85 +631,322 @@ function makeStyles(theme: any, s: number) {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
+      maxWidth: "100%",
     },
-    contextText: { color: textSub, fontWeight: "800", fontSize: 12 * s },
 
-    listContent: { paddingHorizontal: 16, paddingTop: 12 },
+    contextText: {
+      color: textSub,
+      fontWeight: "800",
+      fontSize: 12 * s,
+    },
 
-    msgRow: { flexDirection: "row", marginBottom: 10 },
-    bubble: {
-      maxWidth: "92%",
-      padding: 12,
-      borderRadius: 16,
+    listWrap: {
+      flex: 1,
+    },
+
+    listContent: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      flexGrow: 1,
+    },
+
+    emptyWrap: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 36,
+      paddingHorizontal: 20,
+    },
+
+    emptyIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 24,
+      backgroundColor: "#F3E8FF",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 14,
+    },
+
+    emptyTitle: {
+      fontSize: 18 * s,
+      fontWeight: "900",
+      color: text,
+      textAlign: "center",
+    },
+
+    emptyText: {
+      marginTop: 8,
+      color: textSub,
+      fontSize: 13 * s,
+      textAlign: "center",
+      lineHeight: 20,
+      fontWeight: "600",
+      maxWidth: 300,
+    },
+
+    suggestionRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 16,
+    },
+
+    suggestionChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: card,
       borderWidth: 1,
       borderColor: border,
     },
 
-    userBubble: { backgroundColor: blue, borderColor: blue },
-    aiBubble: { backgroundColor: card },
+    suggestionChipText: {
+      color: blue,
+      fontSize: 12 * s,
+      fontWeight: "800",
+    },
 
-    msgText: { lineHeight: 20 },
-    userText: { color: "#fff", fontWeight: "700", fontSize: 13 * s },
-    aiText: { color: text, fontWeight: "700", fontSize: 13 * s },
+    msgRow: {
+      flexDirection: "row",
+      marginBottom: 14,
+      alignItems: "flex-end",
+    },
 
-    sourcesBox: {
+    msgRowUser: {
+      justifyContent: "flex-end",
+    },
+
+    msgRowAi: {
+      justifyContent: "flex-start",
+    },
+
+    aiAvatar: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: "#F3E8FF",
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 8,
+      marginBottom: 8,
+    },
+
+    bubble: {
+      maxWidth: "86%",
+      padding: 14,
+      borderRadius: 20,
+      borderWidth: 1,
+    },
+
+    userBubble: {
+      backgroundColor: blue,
+      borderColor: blue,
+      borderBottomRightRadius: 8,
+    },
+
+    aiBubble: {
+      backgroundColor: card,
+      borderColor: border,
+      borderBottomLeftRadius: 8,
+      shadowColor: "#000",
+      shadowOpacity: 0.03,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 1,
+    },
+
+    assistantTop: {
+      marginBottom: 8,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: border,
+    },
+
+    assistantName: {
+      fontSize: 12.5 * s,
+      fontWeight: "900",
+      color: text,
+    },
+
+    assistantHint: {
+      fontSize: 10.5 * s,
+      color: textSub,
+      marginTop: 2,
+      fontWeight: "700",
+    },
+
+    msgText: {
+      lineHeight: 21,
+    },
+
+    userText: {
+      color: "#fff",
+      fontWeight: "700",
+      fontSize: 13.5 * s,
+    },
+
+    aiText: {
+      color: text,
+      fontWeight: "700",
+      fontSize: 13.5 * s,
+    },
+
+    sourcesCard: {
       marginTop: 12,
       borderWidth: 1,
       borderColor: border,
       backgroundColor: muted,
-      borderRadius: 14,
+      borderRadius: 16,
       padding: 10,
     },
-    sourcesHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-    sourcesTitle: { fontWeight: "900", color: text, fontSize: 12 * s },
 
-    sourceRow: { flexDirection: "row", gap: 8, marginTop: 4 },
-    sourceIndex: { color: chevron, fontWeight: "900", fontSize: 11 * s },
-    sourceText: { flex: 1, color: textSub, fontWeight: "800", fontSize: 11 * s },
+    sourcesHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+    },
 
-    inputBar: {
+    sourcesIconWrap: {
+      width: 26,
+      height: 26,
+      borderRadius: 10,
+      backgroundColor: "#FFFFFF",
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 8,
+    },
+
+    sourcesTitle: {
+      fontWeight: "900",
+      color: text,
+      fontSize: 12.5 * s,
+    },
+
+    sourceItem: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      backgroundColor: "#FFFFFF",
+      borderRadius: 12,
+      padding: 10,
+      marginTop: 8,
+    },
+
+    sourceBadge: {
+      minWidth: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: "#EDE9FE",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 6,
+      marginTop: 1,
+    },
+
+    sourceBadgeText: {
+      color: "#7C3AED",
+      fontWeight: "900",
+      fontSize: 11 * s,
+    },
+
+    sourceText: {
+      color: text,
+      fontWeight: "800",
+      fontSize: 11.5 * s,
+      lineHeight: 16,
+    },
+
+    sourceMeta: {
+      color: textSub,
+      fontWeight: "700",
+      fontSize: 10.5 * s,
+      marginTop: 3,
+    },
+
+    inputArea: {
       position: "absolute",
       left: 0,
       right: 0,
-      // bottom is set dynamically inline
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      backgroundColor: bg,
-      borderTopWidth: 1,
-      borderTopColor: border,
-      flexDirection: "row",
-      gap: 10,
-      alignItems: "flex-end",
+      paddingHorizontal: 14,
+      paddingTop: 8,
+      paddingBottom: 8,
+      backgroundColor: "transparent",
     },
-    inputWrap: {
-      flex: 1,
-      flexDirection: "row",
-      gap: 10,
-      alignItems: "flex-end",
+
+    inputShell: {
+      backgroundColor: card,
+      borderRadius: 22,
       borderWidth: 1,
       borderColor: border,
-      borderRadius: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      backgroundColor: card,
+      padding: 12,
+      shadowColor: "#000",
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
     },
+
+    inputTopRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+    },
+
+    inputIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: "#F3E8FF",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 2,
+    },
+
     input: {
       flex: 1,
       color: text,
-      fontSize: 13 * s,
+      fontSize: 14 * s,
       fontWeight: "700",
       maxHeight: 110,
-      minHeight: 40,
+      minHeight: 42,
+      paddingTop: 8,
+      paddingBottom: 8,
+    },
+
+    inputFooter: {
+      marginTop: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+
+    inputHint: {
+      color: textSub,
+      fontSize: 11 * s,
+      fontWeight: "700",
     },
 
     sendBtn: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
+      minWidth: 88,
+      height: 44,
+      borderRadius: 14,
       backgroundColor: blue,
       alignItems: "center",
       justifyContent: "center",
+      flexDirection: "row",
+      gap: 6,
+      paddingHorizontal: 14,
     },
-    sendBtnDisabled: { opacity: 0.55 },
+
+    sendBtnDisabled: {
+      opacity: 0.5,
+    },
+
+    sendText: {
+      color: "#fff",
+      fontWeight: "900",
+      fontSize: 13 * s,
+    },
   };
 }
