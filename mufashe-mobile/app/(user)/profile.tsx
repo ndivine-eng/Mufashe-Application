@@ -8,6 +8,11 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Modal,
+  TextInput,
+  Linking,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -70,15 +75,20 @@ export default function ProfileScreen() {
   const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
 
   const ACCENT = theme?.primary || "#8B5CF6";
-  const ACCENT_SOFT = theme?.primarySoft || "#F3E8FF";
   const TEXT = theme?.text || "#1F2937";
-  const TEXT_SUB = theme?.textSub || "#6B7280";
 
   const [loadingUser, setLoadingUser] = useState(true);
   const [user, setUser] = useState<StoredUser | null>(null);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
+
+  const [editVisible, setEditVisible] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
 
   const loadUserAndPhoto = useCallback(async () => {
     try {
@@ -88,6 +98,16 @@ export default function ProfileScreen() {
       const u: StoredUser | null = raw ? JSON.parse(raw) : null;
       setUser(u);
 
+      if (u) {
+        setEditName(u.name || u.fullName || u.username || "");
+        setEditEmail(u.email || "");
+        setEditPhone(u.phone || "");
+      } else {
+        setEditName("");
+        setEditEmail("");
+        setEditPhone("");
+      }
+
       const photoKey = getUserPhotoKey(u);
       if (!photoKey) {
         setPhotoUri(null);
@@ -96,7 +116,8 @@ export default function ProfileScreen() {
 
       const savedPhoto = await AsyncStorage.getItem(photoKey);
       setPhotoUri(savedPhoto || null);
-    } catch {
+    } catch (error) {
+      console.log("Failed to load profile:", error);
       setUser(null);
       setPhotoUri(null);
     } finally {
@@ -113,7 +134,10 @@ export default function ProfileScreen() {
   const onPickPhoto = useCallback(async () => {
     try {
       if (!user) {
-        Alert.alert(t("notLoggedInTitle"), t("notLoggedInMsg"));
+        Alert.alert(
+          t("notLoggedInTitle") || "Not logged in",
+          t("notLoggedInMsg") || "Please log in first."
+        );
         return;
       }
 
@@ -121,12 +145,15 @@ export default function ProfileScreen() {
 
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status !== "granted") {
-        Alert.alert(t("permissionTitle"), t("permissionMsg"));
+        Alert.alert(
+          t("permissionTitle") || "Permission needed",
+          t("permissionMsg") || "Please allow photo access."
+        );
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.9,
@@ -142,27 +169,193 @@ export default function ProfileScreen() {
 
       await AsyncStorage.setItem(photoKey, uri);
       setPhotoUri(uri);
-    } catch {
-      Alert.alert(t("uploadFailedTitle"), t("uploadFailedMsg"));
+    } catch (error) {
+      console.log("Pick photo error:", error);
+      Alert.alert(
+        t("uploadFailedTitle") || "Upload failed",
+        t("uploadFailedMsg") || "Unable to update profile photo."
+      );
     } finally {
       setPhotoLoading(false);
     }
   }, [user, t]);
 
   const onRemovePhoto = useCallback(async () => {
-    if (!user) return;
-    const photoKey = getUserPhotoKey(user);
-    if (!photoKey) return;
+    try {
+      if (!user) return;
 
-    await AsyncStorage.removeItem(photoKey);
-    setPhotoUri(null);
+      Alert.alert(
+        "Remove photo",
+        "Are you sure you want to remove your profile photo?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              const photoKey = getUserPhotoKey(user);
+              if (!photoKey) return;
+
+              await AsyncStorage.removeItem(photoKey);
+              setPhotoUri(null);
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.log("Remove photo error:", error);
+      Alert.alert("Error", "Failed to remove photo.");
+    }
   }, [user]);
 
-  const onSignOut = useCallback(async () => {
-    await AsyncStorage.removeItem("token");
-    await AsyncStorage.removeItem("user");
-    router.replace("/(auth)/login");
+  const openEditProfile = useCallback(() => {
+    if (!user) {
+      Alert.alert("Not logged in", "Please log in first.");
+      return;
+    }
+    setEditName(user.name || user.fullName || user.username || "");
+    setEditEmail(user.email || "");
+    setEditPhone(user.phone || "");
+    setEditVisible(true);
+  }, [user]);
+
+  const onSaveProfile = useCallback(async () => {
+    try {
+      if (!user) {
+        Alert.alert("Not logged in", "Please log in first.");
+        return;
+      }
+
+      const trimmedName = editName.trim();
+      const trimmedEmail = editEmail.trim();
+      const trimmedPhone = editPhone.trim();
+
+      if (!trimmedName) {
+        Alert.alert("Missing name", "Please enter your name.");
+        return;
+      }
+
+      setSavingProfile(true);
+
+      const updatedUser: StoredUser = {
+        ...user,
+        name: trimmedName,
+        fullName: trimmedName,
+        email: trimmedEmail || user.email || "",
+        phone: trimmedPhone || "",
+        emailOrPhone: trimmedEmail || trimmedPhone || user.emailOrPhone || "",
+      };
+
+      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setEditVisible(false);
+
+      Alert.alert("Success", "Profile updated successfully.");
+    } catch (error) {
+      console.log("Save profile error:", error);
+      Alert.alert("Error", "Failed to save profile changes.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [editEmail, editName, editPhone, user]);
+
+  const onSecurityPress = useCallback(() => {
+    Alert.alert(
+      "Security",
+      "Security settings can be connected to your backend change-password or account protection screen.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Go to Settings",
+          onPress: () => router.push("/(user)/settings"),
+        },
+      ]
+    );
   }, []);
+
+  const openExternalLink = useCallback(async (url: string, fallbackTitle: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert("Unavailable", `${fallbackTitle} link is not available.`);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      console.log("Open link error:", error);
+      Alert.alert("Error", `Could not open ${fallbackTitle}.`);
+    }
+  }, []);
+
+  const onHelpPress = useCallback(() => {
+    Alert.alert(
+      "Help center",
+      "Choose how you want to get help.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Email support",
+          onPress: () => openExternalLink("mailto:support@mufashe.com", "email"),
+        },
+        {
+          text: "Call support",
+          onPress: () => openExternalLink("tel:+250788000000", "call"),
+        },
+      ]
+    );
+  }, [openExternalLink]);
+
+  const onPrivacyTermsPress = useCallback(() => {
+    Alert.alert(
+      "Privacy & Terms",
+      "Open legal information.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Privacy Policy",
+          onPress: () => openExternalLink("https://example.com/privacy", "privacy policy"),
+        },
+        {
+          text: "Terms of Use",
+          onPress: () => openExternalLink("https://example.com/terms", "terms of use"),
+        },
+      ]
+    );
+  }, [openExternalLink]);
+
+  const onSignOut = useCallback(async () => {
+    try {
+      Alert.alert(
+        t("signOut") || "Sign out",
+        "Are you sure you want to sign out?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Sign out",
+            style: "destructive",
+            onPress: async () => {
+              const photoKey = getUserPhotoKey(user);
+
+              await AsyncStorage.removeItem("token");
+              await AsyncStorage.removeItem("user");
+
+              if (photoKey) {
+                await AsyncStorage.removeItem(photoKey);
+              }
+
+              setUser(null);
+              setPhotoUri(null);
+
+              router.replace("/(auth)/login");
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.log("Sign out error:", error);
+      Alert.alert("Error", "Failed to sign out.");
+    }
+  }, [t, user]);
 
   const displayName = pickDisplayName(user);
   const contact = pickContact(user);
@@ -172,13 +365,12 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Top bar */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
             <Ionicons name="chevron-back" size={20} color={TEXT} />
           </TouchableOpacity>
 
-          <Text style={styles.topTitle}>{t("profile")}</Text>
+          <Text style={styles.topTitle}>{t("profile") || "Profile"}</Text>
 
           <TouchableOpacity
             onPress={() => router.push("/(user)/settings")}
@@ -189,7 +381,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Hero card */}
         <View style={styles.heroCard}>
           <View style={styles.heroTop}>
             <View style={styles.avatarWrap}>
@@ -216,7 +407,7 @@ export default function ProfileScreen() {
               {loadingUser ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator size="small" color={ACCENT} />
-                  <Text style={styles.loadingText}>{t("loading")}</Text>
+                  <Text style={styles.loadingText}>{t("loading") || "Loading..."}</Text>
                 </View>
               ) : (
                 <>
@@ -251,16 +442,20 @@ export default function ProfileScreen() {
               <Text style={styles.secondaryActionText}>Change photo</Text>
             </TouchableOpacity>
 
-            {photoUri ? (
-              <TouchableOpacity style={styles.removeAction} onPress={onRemovePhoto} activeOpacity={0.9}>
-                <Ionicons name="trash-outline" size={18} color={theme?.danger || "#DC2626"} />
-                <Text style={styles.removeActionText}>{t("removePhoto")}</Text>
-              </TouchableOpacity>
-            ) : null}
+            <TouchableOpacity style={styles.secondaryAction} onPress={openEditProfile} activeOpacity={0.9}>
+              <Ionicons name="create-outline" size={18} color={ACCENT} />
+              <Text style={styles.secondaryActionText}>Edit profile</Text>
+            </TouchableOpacity>
           </View>
+
+          {photoUri ? (
+            <TouchableOpacity style={styles.removeActionFull} onPress={onRemovePhoto} activeOpacity={0.9}>
+              <Ionicons name="trash-outline" size={18} color={theme?.danger || "#DC2626"} />
+              <Text style={styles.removeActionText}>{t("removePhoto") || "Remove photo"}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* Quick actions */}
         <View style={styles.quickActionsRow}>
           <TouchableOpacity
             style={[styles.quickCard, styles.quickPrimary]}
@@ -268,7 +463,7 @@ export default function ProfileScreen() {
             onPress={() => router.push("/(user)/history")}
           >
             <Ionicons name="time-outline" size={24} color="#fff" />
-            <Text style={styles.quickPrimaryText}>{t("myQuestions")}</Text>
+            <Text style={styles.quickPrimaryText}>{t("myQuestions") || "My questions"}</Text>
             <Text style={styles.quickPrimarySub}>View previous activity</Text>
           </TouchableOpacity>
 
@@ -293,41 +488,39 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Account section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{t("account")}</Text>
+          <Text style={styles.sectionTitle}>{t("account") || "Account"}</Text>
         </View>
 
         <View style={styles.card}>
           <RowNav
             icon="person-outline"
-            title={t("personalInfo")}
-            subtitle={t("updateDetails")}
-            onPress={() => Alert.alert(t("comingSoonTitle"), t("comingSoonPersonalInfo"))}
+            title={t("personalInfo") || "Personal info"}
+            subtitle={t("updateDetails") || "Update your details"}
+            onPress={openEditProfile}
             theme={theme}
             styles={styles}
           />
           <Divider styles={styles} />
           <RowNav
             icon="shield-checkmark-outline"
-            title={t("security")}
-            subtitle={t("securityDesc")}
-            onPress={() => Alert.alert(t("comingSoonTitle"), t("comingSoonSecurity"))}
+            title={t("security") || "Security"}
+            subtitle={t("securityDesc") || "Password and account protection"}
+            onPress={onSecurityPress}
             theme={theme}
             styles={styles}
           />
           <Divider styles={styles} />
           <RowNav
             icon="time-outline"
-            title={t("myQuestions")}
-            subtitle={t("viewHistory")}
+            title={t("myQuestions") || "My questions"}
+            subtitle={t("viewHistory") || "View consultation history"}
             onPress={() => router.push("/(user)/history")}
             theme={theme}
             styles={styles}
           />
         </View>
 
-        {/* Support section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Support</Text>
         </View>
@@ -337,7 +530,7 @@ export default function ProfileScreen() {
             icon="help-circle-outline"
             title="Help center"
             subtitle="Get guidance on using Mufashe"
-            onPress={() => Alert.alert("Coming soon", "Help center will be added soon.")}
+            onPress={onHelpPress}
             theme={theme}
             styles={styles}
           />
@@ -346,20 +539,90 @@ export default function ProfileScreen() {
             icon="document-text-outline"
             title="Privacy & terms"
             subtitle="Read policies and app information"
-            onPress={() => Alert.alert("Coming soon", "Privacy and terms will be added soon.")}
+            onPress={onPrivacyTermsPress}
             theme={theme}
             styles={styles}
           />
         </View>
 
-        {/* Sign out */}
         <TouchableOpacity style={styles.signOut} onPress={onSignOut} activeOpacity={0.92}>
           <Ionicons name="log-out-outline" size={18} color={theme?.danger || "#DC2626"} />
-          <Text style={styles.signOutText}>{t("signOut")}</Text>
+          <Text style={styles.signOutText}>{t("signOut") || "Sign out"}</Text>
         </TouchableOpacity>
 
         <Text style={styles.version}>Mufashe • Version 1.0</Text>
       </ScrollView>
+
+      <Modal visible={editVisible} animationType="slide" transparent onRequestClose={() => setEditVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardWrap}
+          >
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit profile</Text>
+                <TouchableOpacity onPress={() => setEditVisible(false)} style={styles.modalCloseBtn}>
+                  <Ionicons name="close" size={20} color={TEXT} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inputLabel}>Full name</Text>
+              <TextInput
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Enter your full name"
+                placeholderTextColor={theme?.chevron || "#A1A1AA"}
+                style={styles.input}
+              />
+
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Enter your email"
+                placeholderTextColor={theme?.chevron || "#A1A1AA"}
+                style={styles.input}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.inputLabel}>Phone</Text>
+              <TextInput
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="Enter your phone number"
+                placeholderTextColor={theme?.chevron || "#A1A1AA"}
+                style={styles.input}
+                keyboardType="phone-pad"
+              />
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalSecondaryBtn}
+                  onPress={() => setEditVisible(false)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.modalSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={onSaveProfile}
+                  activeOpacity={0.9}
+                  disabled={savingProfile}
+                >
+                  {savingProfile ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalPrimaryText}>Save changes</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -416,6 +679,7 @@ function makeStyles(theme: any, s: number) {
   const DANGER_BG = theme?.dangerBg || "#FEE2E2";
   const DIVIDER = theme?.divider || "#EEEAF6";
   const CHEVRON = theme?.chevron || "#A1A1AA";
+  const MODAL_BACKDROP = "rgba(0,0,0,0.35)";
 
   return {
     safe: {
@@ -634,8 +898,8 @@ function makeStyles(theme: any, s: number) {
       fontWeight: "900",
     },
 
-    removeAction: {
-      flex: 1,
+    removeActionFull: {
+      marginTop: 10,
       minHeight: 48,
       borderRadius: 16,
       backgroundColor: DANGER_BG,
@@ -820,6 +1084,107 @@ function makeStyles(theme: any, s: number) {
       color: CHEVRON,
       fontSize: 11 * s,
       fontWeight: "700",
+    },
+
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: MODAL_BACKDROP,
+      justifyContent: "flex-end",
+    },
+
+    modalKeyboardWrap: {
+      width: "100%",
+    },
+
+    modalCard: {
+      backgroundColor: CARD_BG,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 18,
+      paddingTop: 18,
+      paddingBottom: 24,
+      borderWidth: 1,
+      borderColor: BORDER,
+    },
+
+    modalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14,
+    },
+
+    modalTitle: {
+      fontSize: 18 * s,
+      fontWeight: "900",
+      color: TEXT,
+    },
+
+    modalCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: MUTED,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    inputLabel: {
+      marginBottom: 6,
+      marginTop: 10,
+      fontSize: 12.5 * s,
+      fontWeight: "800",
+      color: TEXT,
+    },
+
+    input: {
+      minHeight: 48,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: BORDER,
+      backgroundColor: MUTED,
+      paddingHorizontal: 14,
+      color: TEXT,
+      fontSize: 14 * s,
+      fontWeight: "700",
+    },
+
+    modalActions: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 20,
+    },
+
+    modalSecondaryBtn: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: BORDER,
+      backgroundColor: MUTED,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    modalSecondaryText: {
+      color: TEXT,
+      fontWeight: "900",
+      fontSize: 13 * s,
+    },
+
+    modalPrimaryBtn: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: 14,
+      backgroundColor: ACCENT,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    modalPrimaryText: {
+      color: "#fff",
+      fontWeight: "900",
+      fontSize: 13 * s,
     },
   };
 }
