@@ -1,13 +1,10 @@
-// controllers/qa.controller.js
+// backend/src/controllers/qa.controller.js
+// this controller handles the main question-answering logic, including receiving questions from users, processing them with the QA service, and saving the results in the database.
 const { answerQuestion } = require("../services/qa.service");
 const Question = require("../models/Question");
 
 exports.ask = async (req, res) => {
   try {
-    console.log("========== QA ASK START ==========");
-    console.log("USER:", req.user);
-    console.log("BODY:", req.body);
-
     const userId = req.user?.id || req.user?._id;
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -16,16 +13,10 @@ exports.ask = async (req, res) => {
     const { question, topK = 6, category, documentId } = req.body || {};
     const q = String(question || "").trim();
 
-    console.log("QUESTION:", q);
-    console.log("TOPK:", topK);
-    console.log("CATEGORY:", category);
-    console.log("DOCUMENT ID:", documentId);
-
     if (q.length < 3) {
       return res.status(400).json({ message: "Question is required" });
     }
 
-    console.log("Calling answerQuestion...");
     const result = await answerQuestion({
       userId,
       question: q,
@@ -33,7 +24,6 @@ exports.ask = async (req, res) => {
       category,
       documentId,
     });
-    console.log("answerQuestion finished");
 
     const answerText =
       result?.answer ||
@@ -47,28 +37,22 @@ exports.ask = async (req, res) => {
       ? result.citations
       : [];
 
-    console.log("ANSWER LENGTH:", String(answerText || "").length);
-    console.log("SOURCES COUNT:", sources.length);
+    const finalAnswer = answerText?.trim()
+      ? answerText
+      : "Summary:\nI could not generate a reliable answer from the available sources.\n\nWhat this may mean for you:\n- The system may need a clearer question or better matching legal sources.\n\nWhat you can do next:\n- Ask again using more specific details.\n- Choose the correct document or category.\n\nWhat to prepare:\n- Any document linked to your issue.\n\nUrgent note:\nNo urgent warning from the available sources.\n\nSources used:\n- No usable source found.\n\nThis is legal information, not a lawyer-client relationship.";
 
     const saved = await Question.create({
       owner: userId,
       question: q,
-      answer: answerText?.trim()
-        ? answerText
-        : "I couldn’t generate an answer from the sources. Not legal advice.",
+      answer: finalAnswer,
       category: category ? String(category).trim().toUpperCase() : null,
       documentId: documentId || null,
       sources,
       status: "APPROVED",
     });
 
-    console.log("QUESTION SAVED:", saved._id);
-    console.log("========== QA ASK SUCCESS ==========");
-
     return res.status(200).json({
-      answer: answerText?.trim()
-        ? answerText
-        : "I couldn’t generate an answer from the sources. Not legal advice.",
+      answer: finalAnswer,
       sources,
       savedQuestionId: saved._id,
       status: saved.status,
@@ -76,6 +60,7 @@ exports.ask = async (req, res) => {
   } catch (err) {
     console.error("❌ QA ask error:", err);
     console.error("❌ QA ask stack:", err?.stack);
+
     return res.status(500).json({
       message: "Failed to answer",
       error: err?.message || "Unknown error",

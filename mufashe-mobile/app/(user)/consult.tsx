@@ -35,9 +35,10 @@ function buildApiUrl(path: string) {
 type Source = {
   n?: number;
   title?: string;
-  pageStart?: number;
-  pageEnd?: number;
+  pageStart?: number | null;
+  pageEnd?: number | null;
   snippet?: string;
+  documentId?: string;
 };
 
 type Msg =
@@ -57,6 +58,55 @@ function looksLikeHtml(text: string) {
   return s.startsWith("<!doctype") || s.startsWith("<html") || s.includes("<body");
 }
 
+const SUGGESTIONS = [
+  "I bought a phone and later learned it was stolen. What can I do?",
+  "My employer dismissed me without notice. What are my rights?",
+  "Someone borrowed money and refuses to pay me back. What steps can I take?",
+  "My landlord wants me to leave immediately. Is that allowed?",
+];
+
+function sectionizeAnswer(text: string) {
+  const raw = String(text || "").trim();
+
+  const titles = [
+    "Summary:",
+    "What this may mean for you:",
+    "What you can do next:",
+    "What to prepare:",
+    "Urgent note:",
+    "Sources used:",
+  ];
+
+  const sections: { title: string; body: string }[] = [];
+
+  for (let i = 0; i < titles.length; i++) {
+    const start = raw.indexOf(titles[i]);
+    if (start === -1) continue;
+
+    let end = raw.length;
+    for (let j = i + 1; j < titles.length; j++) {
+      const next = raw.indexOf(titles[j], start + titles[i].length);
+      if (next !== -1) {
+        end = next;
+        break;
+      }
+    }
+
+    const chunk = raw.slice(start, end).trim();
+    const [head, ...rest] = chunk.split("\n");
+    sections.push({
+      title: head.replace(":", "").trim(),
+      body: rest.join("\n").trim(),
+    });
+  }
+
+  if (!sections.length) {
+    return [{ title: "Guidance", body: raw }];
+  }
+
+  return sections;
+}
+
 export default function Consult() {
   const { theme, scale } = useAppSettings();
   const t = useT();
@@ -73,7 +123,7 @@ export default function Consult() {
 
   const [kbVisible, setKbVisible] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
-  const [composerHeight, setComposerHeight] = useState(96);
+  const [composerHeight, setComposerHeight] = useState(108);
 
   const scrollRef = useRef<ScrollView>(null);
   const didLoadSessionRef = useRef(false);
@@ -157,101 +207,126 @@ export default function Consult() {
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
 
-  const send = useCallback(async () => {
-    const q = input.trim();
-    if (!q || loading) return;
-
-    const userMsg: Msg = { id: String(Date.now()), role: "user", text: q };
-    const tempId = `temp-${Date.now()}`;
-    const pendingMsg: Msg = {
-      id: tempId,
-      role: "assistant",
-      text: "Thinking...",
-      pending: true,
-    };
-
-    setMessages((prev) => [...prev, userMsg, pendingMsg]);
-    setInput("");
-    setLoading(true);
-
-    setTimeout(() => scrollToBottom(true), 120);
-
-    try {
-      const token = await AsyncStorage.getItem("token");
-
-      if (!token) {
-        Alert.alert("Session", "Please login again.");
-        router.replace("/(auth)/login");
-        return;
-      }
-
-      const url = buildApiUrl("/qa/ask");
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({
-          question: q,
-          topK: 3,
-          ...(documentId ? { documentId } : {}),
-          ...(category ? { category } : {}),
-        }),
-      });
-
-      const text = await res.text();
-      const data = safeParseJson(text);
-
-      if (!res.ok) {
-        const msg = data?.message || `Request failed (${res.status})`;
-        throw new Error(
-          looksLikeHtml(text)
-            ? "Server returned HTML instead of JSON. Check API route or tunnel."
-            : msg
-        );
-      }
-
-      const answer = (data?.answer || data?.finalAnswer || "No answer.").toString();
-      const sources: Source[] = Array.isArray(data?.sources) ? data.sources : [];
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempId
-            ? {
-                id: String(Date.now() + 1),
-                role: "assistant",
-                text: answer,
-                sources,
-              }
-            : m
-        )
-      );
-
-      setTimeout(() => scrollToBottom(true), 160);
-    } catch (e: any) {
-      const msg = String(e?.message || "Unknown error");
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempId
-            ? {
-                id: String(Date.now() + 2),
-                role: "assistant",
-                text: `Error: ${msg}`,
-              }
-            : m
-        )
-      );
-
-      setTimeout(() => scrollToBottom(true), 160);
-    } finally {
-      setLoading(false);
+  const openSourceInLibrary = useCallback((source: Source) => {
+    if (!source?.documentId) {
+      Alert.alert("Source not available", "This source is missing its document reference.");
+      return;
     }
-  }, [input, loading, documentId, category, scrollToBottom]);
+
+    router.push({
+      pathname: "/(user)/library",
+      params: {
+        documentId: String(source.documentId),
+        title: source.title || "Document",
+        from: "consult",
+      },
+    });
+  }, []);
+
+  const send = useCallback(
+    async (prefilled?: string) => {
+      const q = String(prefilled ?? input).trim();
+      if (!q || loading) return;
+
+      const userMsg: Msg = { id: String(Date.now()), role: "user", text: q };
+      const tempId = `temp-${Date.now()}`;
+      const pendingMsg: Msg = {
+        id: tempId,
+        role: "assistant",
+        text: "MUFASHE is reviewing legal sources and preparing guidance...",
+        pending: true,
+      };
+
+      setMessages((prev) => [...prev, userMsg, pendingMsg]);
+      setInput("");
+      setLoading(true);
+
+      setTimeout(() => scrollToBottom(true), 120);
+
+      try {
+        const token = await AsyncStorage.getItem("token");
+
+        if (!token) {
+          Alert.alert("Session", "Please login again.");
+          router.replace("/(auth)/login");
+          return;
+        }
+
+        const url = buildApiUrl("/qa/ask");
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "ngrok-skip-browser-warning": "true",
+          },
+          body: JSON.stringify({
+            question: q,
+            topK: 4,
+            ...(documentId ? { documentId } : {}),
+            ...(category ? { category } : {}),
+          }),
+        });
+
+        const text = await res.text();
+        const data = safeParseJson(text);
+
+        if (!res.ok) {
+          const msg = data?.message || `Request failed (${res.status})`;
+          throw new Error(
+            looksLikeHtml(text)
+              ? "Server returned HTML instead of JSON. Check API route or tunnel."
+              : msg
+          );
+        }
+
+        const answer = (data?.answer || data?.finalAnswer || "No answer.").toString();
+        const sources: Source[] = Array.isArray(data?.sources) ? data.sources : [];
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? {
+                  id: String(Date.now() + 1),
+                  role: "assistant",
+                  text: answer,
+                  sources,
+                }
+              : m
+          )
+        );
+
+        setTimeout(() => scrollToBottom(true), 160);
+      } catch (e: any) {
+        const msg = String(e?.message || "Unknown error");
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? {
+                  id: String(Date.now() + 2),
+                  role: "assistant",
+                  text:
+                    `Guidance could not be loaded right now.\n\n` +
+                    `What you can do next:\n` +
+                    `- Check your internet connection.\n` +
+                    `- Make sure the server is running.\n` +
+                    `- Try asking again in a moment.\n\n` +
+                    `Technical message: ${msg}`,
+                }
+              : m
+          )
+        );
+
+        setTimeout(() => scrollToBottom(true), 160);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [input, loading, documentId, category, scrollToBottom]
+  );
 
   const clearChat = useCallback(() => {
     Alert.alert("Clear chat", "Do you want to remove this conversation?", [
@@ -298,12 +373,24 @@ export default function Consult() {
 
           <View style={styles.titleWrap}>
             <Text style={styles.title}>{t("consult")}</Text>
-            <Text style={styles.titleSub}>Legal Q&A</Text>
+            <Text style={styles.titleSub}>Legal guidance in simple language</Text>
           </View>
 
           <TouchableOpacity onPress={clearChat} style={styles.topIconBtn} activeOpacity={0.9}>
             <Ionicons name="trash-outline" size={18} color={theme.text} />
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.infoBanner}>
+          <View style={styles.infoIconWrap}>
+            <Ionicons name="shield-checkmark-outline" size={16} color="#7C3AED" />
+          </View>
+          <View style={styles.infoTextWrap}>
+            <Text style={styles.infoTitle}>Guidance based on legal sources</Text>
+            <Text style={styles.infoText}>
+              MUFASHE explains uploaded legal information in a clearer way and shows the sources used.
+            </Text>
+          </View>
         </View>
 
         {documentId ? (
@@ -329,10 +416,25 @@ export default function Consult() {
               <View style={styles.emptyIcon}>
                 <Ionicons name="chatbubble-ellipses-outline" size={24} color="#8B5CF6" />
               </View>
-              <Text style={styles.emptyTitle}>Start your consultation</Text>
+
+              <Text style={styles.emptyTitle}>Ask your legal question with confidence</Text>
               <Text style={styles.emptyText}>
-                Ask a legal question and read the answer comfortably.
+                You will get simple legal guidance, practical next steps, and legal sources used for the answer.
               </Text>
+
+              <View style={styles.suggestionWrap}>
+                {SUGGESTIONS.map((item, idx) => (
+                  <TouchableOpacity
+                    key={`${item}-${idx}`}
+                    style={styles.suggestionChip}
+                    activeOpacity={0.9}
+                    onPress={() => send(item)}
+                  >
+                    <Ionicons name="sparkles-outline" size={14} color="#7C3AED" />
+                    <Text style={styles.suggestionText}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           ) : (
             messages.map((item) => {
@@ -348,7 +450,7 @@ export default function Consult() {
                       {item.pending ? (
                         <ActivityIndicator size="small" color="#8B5CF6" />
                       ) : (
-                        <Ionicons name="sparkles-outline" size={16} color="#8B5CF6" />
+                        <Ionicons name="shield-checkmark-outline" size={16} color="#8B5CF6" />
                       )}
                     </View>
                   )}
@@ -356,53 +458,95 @@ export default function Consult() {
                   <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
                     {!isUser && (
                       <View style={styles.assistantTop}>
-                        <Text style={styles.assistantName}>Mufashe AI</Text>
+                        <Text style={styles.assistantName}>MUFASHE Guidance</Text>
+                        <Text style={styles.assistantSub}>
+                          Clear explanation • practical next steps • source-based
+                        </Text>
                       </View>
                     )}
 
                     {isUser ? (
                       <Text style={[styles.msgText, styles.userText]}>{item.text}</Text>
+                    ) : item.pending ? (
+                      <Text style={[styles.msgText, styles.aiText]}>{item.text}</Text>
                     ) : (
-                      <ScrollView
-                        style={styles.answerScroll}
-                        contentContainerStyle={styles.answerScrollContent}
-                        nestedScrollEnabled
-                        showsVerticalScrollIndicator
-                      >
-                        <Text style={[styles.msgText, styles.aiText]}>{item.text}</Text>
-                      </ScrollView>
+                      <View>
+                        {sectionizeAnswer(item.text).map((section, idx) => (
+                          <View
+                            key={`${section.title}-${idx}`}
+                            style={[
+                              styles.answerSection,
+                              idx === 0 ? null : styles.answerSectionSpacing,
+                            ]}
+                          >
+                            <Text style={styles.answerSectionTitle}>{section.title}</Text>
+                            <Text style={[styles.msgText, styles.aiText]}>{section.body}</Text>
+                          </View>
+                        ))}
+                      </View>
                     )}
 
                     {"sources" in item && item.sources?.length ? (
                       <View style={styles.sourcesCard}>
-                        <Text style={styles.sourcesTitle}>{t("sources")}</Text>
+                        <Text style={styles.sourcesTitle}>Legal sources used</Text>
 
-                        {item.sources.slice(0, 4).map((s, idx) => (
-                          <View key={`${String(s.n ?? idx)}-${idx}`} style={styles.sourceItem}>
-                            <View style={styles.sourceBadge}>
-                              <Text style={styles.sourceBadgeText}>{s.n ?? idx + 1}</Text>
-                            </View>
+                        {item.sources.slice(0, 4).map((s, idx) => {
+                          const clickable = !!s.documentId;
 
-                            <View style={styles.sourceTextWrap}>
-                              <Text style={styles.sourceText}>{s.title || "Document"}</Text>
+                          return (
+                            <TouchableOpacity
+                              key={`${String(s.n ?? idx)}-${idx}`}
+                              style={[
+                                styles.sourceItem,
+                                clickable && styles.sourceItemClickable,
+                              ]}
+                              activeOpacity={clickable ? 0.85 : 1}
+                              disabled={!clickable}
+                              onPress={() => openSourceInLibrary(s)}
+                            >
+                              <View style={styles.sourceBadge}>
+                                <Text style={styles.sourceBadgeText}>{s.n ?? idx + 1}</Text>
+                              </View>
 
-                              {s.pageStart != null ? (
-                                <Text style={styles.sourceMeta}>
-                                  Page {s.pageStart}
-                                  {s.pageEnd != null && s.pageEnd !== s.pageStart
-                                    ? ` - ${s.pageEnd}`
-                                    : ""}
-                                </Text>
-                              ) : null}
+                              <View style={styles.sourceTextWrap}>
+                                <View style={styles.sourceHeaderRow}>
+                                  <Text style={styles.sourceText}>{s.title || "Document"}</Text>
+                                  {clickable ? (
+                                    <View style={styles.openTag}>
+                                      <Ionicons
+                                        name="open-outline"
+                                        size={11}
+                                        color="#7C3AED"
+                                      />
+                                      <Text style={styles.openTagText}>Open</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
 
-                              {!!s.snippet ? (
-                                <Text style={styles.sourceSnippet} numberOfLines={3}>
-                                  {s.snippet}
-                                </Text>
-                              ) : null}
-                            </View>
-                          </View>
-                        ))}
+                                {s.pageStart != null ? (
+                                  <Text style={styles.sourceMeta}>
+                                    Page {s.pageStart}
+                                    {s.pageEnd != null && s.pageEnd !== s.pageStart
+                                      ? ` - ${s.pageEnd}`
+                                      : ""}
+                                  </Text>
+                                ) : null}
+
+                                {!!s.snippet ? (
+                                  <Text style={styles.sourceSnippet} numberOfLines={3}>
+                                    {s.snippet}
+                                  </Text>
+                                ) : null}
+
+                                {clickable ? (
+                                  <Text style={styles.sourceHint}>
+                                    Tap to read this source in Library
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     ) : null}
                   </View>
@@ -421,7 +565,7 @@ export default function Consult() {
               <TextInput
                 value={input}
                 onChangeText={setInput}
-                placeholder={t("askLegalQuestion")}
+                placeholder="Describe your legal issue clearly..."
                 placeholderTextColor={theme.textSub}
                 style={styles.input}
                 multiline
@@ -437,11 +581,13 @@ export default function Consult() {
 
             <View style={styles.inputFooter}>
               <Text style={styles.inputHint}>
-                {loading ? "Generating answer..." : "Ask clearly and briefly"}
+                {loading
+                  ? "Preparing grounded legal guidance..."
+                  : "Include useful details like agreement, receipt, date, money, landlord, employer, police, or witness"}
               </Text>
 
               <TouchableOpacity
-                onPress={send}
+                onPress={() => send()}
                 disabled={!canSend}
                 style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
                 activeOpacity={0.9}
@@ -451,7 +597,7 @@ export default function Consult() {
                 ) : (
                   <>
                     <Ionicons name="send" size={14} color="#fff" />
-                    <Text style={styles.sendText}>Send</Text>
+                    <Text style={styles.sendText}>Ask</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -527,6 +673,46 @@ function makeStyles(theme: any, s: number) {
       fontWeight: "600",
     },
 
+    infoBanner: {
+      marginHorizontal: 14,
+      marginBottom: 10,
+      backgroundColor: "#F6F0FF",
+      borderWidth: 1,
+      borderColor: "#E9D5FF",
+      borderRadius: 16,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "flex-start",
+    },
+
+    infoIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: "#FFFFFF",
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 10,
+    },
+
+    infoTextWrap: {
+      flex: 1,
+    },
+
+    infoTitle: {
+      color: text,
+      fontWeight: "900",
+      fontSize: 12.5 * s,
+      marginBottom: 2,
+    },
+
+    infoText: {
+      color: textSub,
+      fontWeight: "600",
+      fontSize: 11 * s,
+      lineHeight: 18,
+    },
+
     contextWrap: {
       paddingHorizontal: 14,
       paddingBottom: 8,
@@ -566,14 +752,14 @@ function makeStyles(theme: any, s: number) {
     emptyWrap: {
       alignItems: "center",
       justifyContent: "center",
-      paddingTop: 72,
-      paddingHorizontal: 24,
+      paddingTop: 54,
+      paddingHorizontal: 18,
     },
 
     emptyIcon: {
-      width: 62,
-      height: 62,
-      borderRadius: 20,
+      width: 68,
+      height: 68,
+      borderRadius: 22,
       backgroundColor: "#F3E8FF",
       alignItems: "center",
       justifyContent: "center",
@@ -581,7 +767,7 @@ function makeStyles(theme: any, s: number) {
     },
 
     emptyTitle: {
-      fontSize: 17 * s,
+      fontSize: 18 * s,
       fontWeight: "900",
       color: text,
       textAlign: "center",
@@ -592,9 +778,36 @@ function makeStyles(theme: any, s: number) {
       color: textSub,
       fontSize: 13 * s,
       textAlign: "center",
-      lineHeight: 20,
+      lineHeight: 21,
       fontWeight: "600",
-      maxWidth: 300,
+      maxWidth: 320,
+    },
+
+    suggestionWrap: {
+      width: "100%",
+      marginTop: 18,
+    },
+
+    suggestionChip: {
+      width: "100%",
+      backgroundColor: card,
+      borderWidth: 1,
+      borderColor: border,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      marginBottom: 10,
+      flexDirection: "row",
+      alignItems: "flex-start",
+    },
+
+    suggestionText: {
+      flex: 1,
+      marginLeft: 8,
+      color: text,
+      fontWeight: "700",
+      fontSize: 12 * s,
+      lineHeight: 18,
     },
 
     msgRow: {
@@ -643,25 +856,40 @@ function makeStyles(theme: any, s: number) {
     },
 
     assistantTop: {
-      marginBottom: 6,
+      marginBottom: 10,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: border,
     },
 
     assistantName: {
-      fontSize: 11.5 * s,
+      fontSize: 12 * s,
       fontWeight: "900",
       color: text,
     },
 
-    answerScroll: {
-      maxHeight: 260,
+    assistantSub: {
+      marginTop: 2,
+      fontSize: 10.5 * s,
+      fontWeight: "700",
+      color: textSub,
     },
 
-    answerScrollContent: {
-      paddingRight: 4,
+    answerSection: {},
+
+    answerSectionSpacing: {
+      marginTop: 12,
+    },
+
+    answerSectionTitle: {
+      color: blue,
+      fontWeight: "900",
+      fontSize: 12 * s,
+      marginBottom: 4,
     },
 
     msgText: {
-      lineHeight: 24,
+      lineHeight: 23,
     },
 
     userText: {
@@ -677,7 +905,7 @@ function makeStyles(theme: any, s: number) {
     },
 
     sourcesCard: {
-      marginTop: 12,
+      marginTop: 14,
       borderWidth: 1,
       borderColor: border,
       backgroundColor: muted,
@@ -699,6 +927,11 @@ function makeStyles(theme: any, s: number) {
       borderRadius: 12,
       padding: 9,
       marginTop: 7,
+    },
+
+    sourceItemClickable: {
+      borderWidth: 1,
+      borderColor: "#E9D5FF",
     },
 
     sourceBadge: {
@@ -723,11 +956,36 @@ function makeStyles(theme: any, s: number) {
       flex: 1,
     },
 
+    sourceHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+
     sourceText: {
+      flex: 1,
       color: text,
       fontWeight: "800",
       fontSize: 11 * s,
       lineHeight: 16,
+    },
+
+    openTag: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#F5F3FF",
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      marginLeft: 8,
+    },
+
+    openTagText: {
+      color: "#7C3AED",
+      fontWeight: "800",
+      fontSize: 9.5 * s,
+      marginLeft: 4,
     },
 
     sourceMeta: {
@@ -743,6 +1001,13 @@ function makeStyles(theme: any, s: number) {
       lineHeight: 16,
       marginTop: 4,
       fontWeight: "500",
+    },
+
+    sourceHint: {
+      marginTop: 6,
+      color: blue,
+      fontWeight: "800",
+      fontSize: 10 * s,
     },
 
     inputArea: {
@@ -781,7 +1046,7 @@ function makeStyles(theme: any, s: number) {
       fontSize: 14 * s,
       fontWeight: "500",
       minHeight: 42,
-      maxHeight: 110,
+      maxHeight: 120,
       paddingTop: 6,
       paddingBottom: 6,
     },
@@ -799,11 +1064,12 @@ function makeStyles(theme: any, s: number) {
       fontWeight: "700",
       flex: 1,
       marginRight: 8,
+      lineHeight: 16,
     },
 
     sendBtn: {
       minWidth: 84,
-      height: 38,
+      height: 40,
       borderRadius: 12,
       backgroundColor: blue,
       alignItems: "center",

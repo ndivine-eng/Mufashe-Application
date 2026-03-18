@@ -1,0 +1,930 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1773847439865" clover="3.2.0">
+  <project timestamp="1773847439865" name="All files">
+    <metrics statements="795" coveredstatements="681" conditionals="527" coveredconditionals="342" methods="82" coveredmethods="63" elements="1404" coveredelements="1086" complexity="0" loc="795" ncloc="795" packages="7" files="36" classes="36"/>
+    <package name="src">
+      <metrics statements="28" coveredstatements="28" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="0"/>
+      <file name="app.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\app.js">
+        <metrics statements="28" coveredstatements="28" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="7" count="1" type="stmt"/>
+        <line num="8" count="1" type="stmt"/>
+        <line num="9" count="1" type="stmt"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="13" count="1" type="stmt"/>
+        <line num="14" count="1" type="stmt"/>
+        <line num="15" count="1" type="stmt"/>
+        <line num="16" count="1" type="stmt"/>
+        <line num="18" count="1" type="stmt"/>
+        <line num="20" count="1" type="stmt"/>
+        <line num="21" count="1" type="stmt"/>
+        <line num="24" count="1" type="stmt"/>
+        <line num="25" count="1" type="stmt"/>
+        <line num="28" count="1" type="stmt"/>
+        <line num="29" count="1" type="stmt"/>
+        <line num="30" count="1" type="stmt"/>
+        <line num="31" count="1" type="stmt"/>
+        <line num="32" count="1" type="stmt"/>
+        <line num="33" count="1" type="stmt"/>
+        <line num="36" count="1" type="stmt"/>
+        <line num="37" count="1" type="stmt"/>
+        <line num="38" count="1" type="stmt"/>
+        <line num="39" count="1" type="stmt"/>
+        <line num="41" count="1" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.controllers">
+      <metrics statements="343" coveredstatements="317" conditionals="273" coveredconditionals="221" methods="34" coveredmethods="32"/>
+      <file name="auth.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\auth.controller.js">
+        <metrics statements="75" coveredstatements="71" conditionals="69" coveredconditionals="61" methods="8" coveredmethods="8"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="7" count="2" type="stmt"/>
+        <line num="8" count="5" type="stmt"/>
+        <line num="14" count="5" type="stmt"/>
+        <line num="15" count="8" type="cond" truecount="1" falsecount="1"/>
+        <line num="16" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="20" count="9" type="stmt"/>
+        <line num="21" count="9" type="stmt"/>
+        <line num="23" count="9" type="stmt"/>
+        <line num="24" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="25" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="27" count="9" type="cond" truecount="4" falsecount="0"/>
+        <line num="28" count="1" type="stmt"/>
+        <line num="31" count="8" type="cond" truecount="4" falsecount="0"/>
+        <line num="32" count="1" type="stmt"/>
+        <line num="35" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="36" count="1" type="stmt"/>
+        <line num="39" count="6" type="cond" truecount="1" falsecount="1"/>
+        <line num="40" count="6" type="stmt"/>
+        <line num="41" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="44" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="45" count="3" type="stmt"/>
+        <line num="46" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="49" count="4" type="stmt"/>
+        <line num="50" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="52" count="3" type="stmt"/>
+        <line num="54" count="3" type="stmt"/>
+        <line num="57" count="2" type="stmt"/>
+        <line num="58" count="2" type="cond" truecount="5" falsecount="0"/>
+        <line num="59" count="1" type="stmt"/>
+        <line num="60" count="1" type="stmt"/>
+        <line num="63" count="2" type="stmt"/>
+        <line num="65" count="2" type="stmt"/>
+        <line num="76" count="1" type="cond" truecount="1" falsecount="1"/>
+        <line num="77" count="1" type="cond" truecount="2" falsecount="2"/>
+        <line num="78" count="1" type="stmt"/>
+        <line num="80" count="0" type="stmt"/>
+        <line num="86" count="6" type="stmt"/>
+        <line num="87" count="6" type="stmt"/>
+        <line num="89" count="6" type="cond" truecount="4" falsecount="0"/>
+        <line num="90" count="1" type="stmt"/>
+        <line num="95" count="5" type="stmt"/>
+        <line num="96" count="5" type="stmt"/>
+        <line num="97" count="5" type="stmt"/>
+        <line num="100" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="101" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="102" count="1" type="stmt"/>
+        <line num="104" count="5" type="stmt"/>
+        <line num="105" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="107" count="4" type="stmt"/>
+        <line num="108" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="110" count="3" type="stmt"/>
+        <line num="112" count="3" type="stmt"/>
+        <line num="123" count="0" type="stmt"/>
+        <line num="129" count="2" type="stmt"/>
+        <line num="130" count="2" type="stmt"/>
+        <line num="131" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="132" count="1" type="stmt"/>
+        <line num="134" count="0" type="stmt"/>
+        <line num="140" count="4" type="stmt"/>
+        <line num="141" count="4" type="stmt"/>
+        <line num="143" count="4" type="cond" truecount="4" falsecount="0"/>
+        <line num="144" count="1" type="stmt"/>
+        <line num="147" count="3" type="stmt"/>
+        <line num="148" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="149" count="1" type="stmt"/>
+        <line num="152" count="2" type="stmt"/>
+        <line num="153" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="155" count="1" type="stmt"/>
+        <line num="156" count="1" type="stmt"/>
+        <line num="158" count="1" type="stmt"/>
+        <line num="164" count="0" type="stmt"/>
+        <line num="168" count="2" type="stmt"/>
+      </file>
+      <file name="document.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\document.controller.js">
+        <metrics statements="104" coveredstatements="104" conditionals="66" coveredconditionals="64" methods="9" coveredmethods="9"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="13" count="2" type="stmt"/>
+        <line num="14" count="2" type="stmt"/>
+        <line num="16" count="2" type="stmt"/>
+        <line num="19" count="14" type="cond" truecount="2" falsecount="0"/>
+        <line num="22" count="2" type="stmt"/>
+        <line num="28" count="2" type="stmt"/>
+        <line num="29" count="5" type="stmt"/>
+        <line num="30" count="5" type="stmt"/>
+        <line num="31" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="33" count="4" type="cond" truecount="3" falsecount="1"/>
+        <line num="34" count="4" type="stmt"/>
+        <line num="36" count="4" type="cond" truecount="4" falsecount="0"/>
+        <line num="37" count="1" type="stmt"/>
+        <line num="43" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="44" count="1" type="stmt"/>
+        <line num="50" count="2" type="stmt"/>
+        <line num="59" count="1" type="stmt"/>
+        <line num="61" count="1" type="stmt"/>
+        <line num="70" count="2" type="stmt"/>
+        <line num="71" count="3" type="stmt"/>
+        <line num="72" count="3" type="stmt"/>
+        <line num="73" count="3" type="stmt"/>
+        <line num="75" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="76" count="2" type="stmt"/>
+        <line num="77" count="2" type="cond" truecount="4" falsecount="0"/>
+        <line num="78" count="1" type="stmt"/>
+        <line num="80" count="1" type="stmt"/>
+        <line num="83" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="84" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="86" count="2" type="stmt"/>
+        <line num="87" count="1" type="stmt"/>
+        <line num="89" count="1" type="stmt"/>
+        <line num="97" count="2" type="stmt"/>
+        <line num="98" count="3" type="stmt"/>
+        <line num="99" count="3" type="stmt"/>
+        <line num="100" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="101" count="1" type="stmt"/>
+        <line num="103" count="1" type="stmt"/>
+        <line num="111" count="2" type="stmt"/>
+        <line num="112" count="4" type="stmt"/>
+        <line num="113" count="4" type="stmt"/>
+        <line num="115" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="116" count="2" type="stmt"/>
+        <line num="117" count="2" type="cond" truecount="4" falsecount="0"/>
+        <line num="118" count="1" type="stmt"/>
+        <line num="120" count="1" type="stmt"/>
+        <line num="124" count="3" type="stmt"/>
+        <line num="126" count="3" type="stmt"/>
+        <line num="131" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="132" count="1" type="stmt"/>
+        <line num="134" count="1" type="stmt"/>
+        <line num="142" count="2" type="stmt"/>
+        <line num="143" count="8" type="stmt"/>
+        <line num="144" count="8" type="stmt"/>
+        <line num="145" count="8" type="cond" truecount="2" falsecount="0"/>
+        <line num="147" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="148" count="1" type="stmt"/>
+        <line num="154" count="6" type="cond" truecount="3" falsecount="1"/>
+        <line num="155" count="6" type="stmt"/>
+        <line num="157" count="6" type="cond" truecount="4" falsecount="0"/>
+        <line num="158" count="1" type="stmt"/>
+        <line num="162" count="5" type="stmt"/>
+        <line num="165" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="166" count="2" type="stmt"/>
+        <line num="188" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="190" count="1" type="stmt"/>
+        <line num="191" count="1" type="stmt"/>
+        <line num="195" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="196" count="1" type="stmt"/>
+        <line num="203" count="2" type="stmt"/>
+        <line num="216" count="1" type="stmt"/>
+        <line num="218" count="1" type="stmt"/>
+        <line num="226" count="2" type="stmt"/>
+        <line num="227" count="2" type="stmt"/>
+        <line num="228" count="2" type="stmt"/>
+        <line num="230" count="1" type="stmt"/>
+        <line num="236" count="1" type="stmt"/>
+        <line num="249" count="2" type="stmt"/>
+        <line num="250" count="3" type="stmt"/>
+        <line num="251" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="252" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="254" count="3" type="stmt"/>
+        <line num="256" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="257" count="1" type="stmt"/>
+        <line num="267" count="1" type="stmt"/>
+        <line num="268" count="1" type="stmt"/>
+        <line num="269" count="1" type="stmt"/>
+        <line num="271" count="1" type="stmt"/>
+        <line num="272" count="2" type="stmt"/>
+        <line num="273" count="2" type="stmt"/>
+        <line num="274" count="1" type="stmt"/>
+        <line num="275" count="1" type="stmt"/>
+        <line num="277" count="1" type="stmt"/>
+        <line num="278" count="1" type="stmt"/>
+        <line num="282" count="1" type="stmt"/>
+        <line num="291" count="1" type="stmt"/>
+        <line num="303" count="2" type="stmt"/>
+        <line num="304" count="3" type="stmt"/>
+        <line num="305" count="3" type="stmt"/>
+        <line num="306" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="308" count="1" type="stmt"/>
+        <line num="310" count="1" type="stmt"/>
+        <line num="312" count="1" type="stmt"/>
+      </file>
+      <file name="googleAuth.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\googleAuth.controller.js">
+        <metrics statements="28" coveredstatements="6" conditionals="22" coveredconditionals="0" methods="2" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="8" count="1" type="stmt"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="11" count="0" type="stmt"/>
+        <line num="12" count="0" type="stmt"/>
+        <line num="13" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+        <line num="23" count="0" type="stmt"/>
+        <line num="24" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="26" count="0" type="stmt"/>
+        <line num="28" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="30" count="0" type="stmt"/>
+        <line num="33" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="35" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="36" count="0" type="stmt"/>
+        <line num="38" count="0" type="stmt"/>
+        <line num="47" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="48" count="0" type="stmt"/>
+        <line num="49" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="50" count="0" type="stmt"/>
+        <line num="53" count="0" type="stmt"/>
+        <line num="55" count="0" type="stmt"/>
+        <line num="60" count="0" type="stmt"/>
+      </file>
+      <file name="qa.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\qa.controller.js">
+        <metrics statements="20" coveredstatements="20" conditionals="29" coveredconditionals="17" methods="1" coveredmethods="1"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="7" count="4" type="stmt"/>
+        <line num="8" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="10" count="1" type="stmt"/>
+        <line num="13" count="3" type="cond" truecount="2" falsecount="1"/>
+        <line num="14" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="16" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="17" count="1" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="29" count="1" type="cond" truecount="1" falsecount="3"/>
+        <line num="34" count="1" type="cond" truecount="1" falsecount="1"/>
+        <line num="40" count="1" type="cond" truecount="1" falsecount="1"/>
+        <line num="44" count="1" type="stmt"/>
+        <line num="54" count="1" type="stmt"/>
+        <line num="61" count="1" type="stmt"/>
+        <line num="62" count="1" type="stmt"/>
+        <line num="64" count="1" type="stmt"/>
+      </file>
+      <file name="questions.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\questions.controller.js">
+        <metrics statements="52" coveredstatements="52" conditionals="40" coveredconditionals="38" methods="7" coveredmethods="7"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="5" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="8" count="2" type="stmt"/>
+        <line num="9" count="4" type="stmt"/>
+        <line num="10" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="11" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="13" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="15" count="3" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="22" count="1" type="stmt"/>
+        <line num="26" count="2" type="stmt"/>
+        <line num="27" count="3" type="stmt"/>
+        <line num="28" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="29" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="31" count="2" type="stmt"/>
+        <line num="35" count="1" type="stmt"/>
+        <line num="37" count="1" type="stmt"/>
+        <line num="41" count="2" type="stmt"/>
+        <line num="42" count="6" type="stmt"/>
+        <line num="43" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="44" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="46" count="5" type="stmt"/>
+        <line num="51" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="53" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="54" count="1" type="stmt"/>
+        <line num="57" count="2" type="stmt"/>
+        <line num="59" count="1" type="stmt"/>
+        <line num="64" count="2" type="stmt"/>
+        <line num="65" count="2" type="stmt"/>
+        <line num="66" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="67" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="69" count="2" type="stmt"/>
+        <line num="70" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="71" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="73" count="2" type="stmt"/>
+        <line num="79" count="1" type="stmt"/>
+        <line num="81" count="1" type="stmt"/>
+        <line num="85" count="2" type="stmt"/>
+        <line num="86" count="3" type="stmt"/>
+        <line num="87" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="89" count="3" type="stmt"/>
+        <line num="95" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="96" count="1" type="stmt"/>
+        <line num="98" count="1" type="stmt"/>
+        <line num="102" count="2" type="stmt"/>
+        <line num="103" count="4" type="stmt"/>
+        <line num="104" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="105" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="107" count="4" type="stmt"/>
+        <line num="113" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="114" count="2" type="stmt"/>
+        <line num="116" count="1" type="stmt"/>
+      </file>
+      <file name="search.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\search.controller.js">
+        <metrics statements="16" coveredstatements="16" conditionals="13" coveredconditionals="10" methods="2" coveredmethods="2"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="10" count="2" type="stmt"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="12" count="2" type="stmt"/>
+        <line num="14" count="2" type="stmt"/>
+        <line num="16" count="1" type="stmt"/>
+        <line num="23" count="1" type="stmt"/>
+        <line num="35" count="2" type="stmt"/>
+        <line num="36" count="4" type="stmt"/>
+        <line num="37" count="4" type="cond" truecount="2" falsecount="1"/>
+        <line num="39" count="4" type="cond" truecount="4" falsecount="0"/>
+        <line num="40" count="1" type="stmt"/>
+        <line num="43" count="3" type="stmt"/>
+        <line num="48" count="2" type="stmt"/>
+        <line num="55" count="1" type="stmt"/>
+      </file>
+      <file name="users.controller.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\controllers\users.controller.js">
+        <metrics statements="48" coveredstatements="48" conditionals="34" coveredconditionals="31" methods="5" coveredmethods="5"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="8" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="10" count="3" type="stmt"/>
+        <line num="11" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="13" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="14" count="1" type="stmt"/>
+        <line num="15" count="1" type="stmt"/>
+        <line num="22" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="23" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="25" count="3" type="stmt"/>
+        <line num="34" count="2" type="stmt"/>
+        <line num="42" count="1" type="stmt"/>
+        <line num="46" count="2" type="stmt"/>
+        <line num="47" count="3" type="stmt"/>
+        <line num="48" count="3" type="stmt"/>
+        <line num="49" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="50" count="1" type="stmt"/>
+        <line num="52" count="1" type="stmt"/>
+        <line num="56" count="2" type="stmt"/>
+        <line num="57" count="4" type="stmt"/>
+        <line num="58" count="4" type="stmt"/>
+        <line num="60" count="4" type="stmt"/>
+        <line num="61" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="62" count="4" type="cond" truecount="3" falsecount="1"/>
+        <line num="63" count="4" type="cond" truecount="3" falsecount="1"/>
+        <line num="65" count="4" type="stmt"/>
+        <line num="70" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="71" count="1" type="stmt"/>
+        <line num="73" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="74" count="1" type="stmt"/>
+        <line num="78" count="2" type="stmt"/>
+        <line num="79" count="4" type="stmt"/>
+        <line num="80" count="4" type="stmt"/>
+        <line num="82" count="4" type="cond" truecount="4" falsecount="0"/>
+        <line num="83" count="1" type="stmt"/>
+        <line num="86" count="3" type="stmt"/>
+        <line num="92" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="93" count="1" type="stmt"/>
+        <line num="95" count="1" type="stmt"/>
+        <line num="99" count="2" type="stmt"/>
+        <line num="100" count="3" type="stmt"/>
+        <line num="101" count="3" type="stmt"/>
+        <line num="102" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="103" count="1" type="stmt"/>
+        <line num="105" count="1" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.middleware">
+      <metrics statements="45" coveredstatements="45" conditionals="24" coveredconditionals="24" methods="8" coveredmethods="8"/>
+      <file name="auth.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\middleware\auth.js">
+        <metrics statements="14" coveredstatements="14" conditionals="8" coveredconditionals="8" methods="1" coveredmethods="1"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="5" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="8" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="2" type="stmt"/>
+        <line num="12" count="4" type="stmt"/>
+        <line num="13" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="14" count="1" type="stmt"/>
+        <line num="17" count="3" type="stmt"/>
+        <line num="18" count="3" type="stmt"/>
+        <line num="21" count="1" type="stmt"/>
+        <line num="23" count="1" type="stmt"/>
+        <line num="27" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="31" count="2" type="stmt"/>
+      </file>
+      <file name="requireAdmin.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\middleware\requireAdmin.js">
+        <metrics statements="8" coveredstatements="8" conditionals="4" coveredconditionals="4" methods="1" coveredmethods="1"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="4" count="4" type="stmt"/>
+        <line num="6" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="7" count="1" type="stmt"/>
+        <line num="13" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="14" count="1" type="stmt"/>
+        <line num="19" count="1" type="stmt"/>
+        <line num="21" count="1" type="stmt"/>
+      </file>
+      <file name="requireRole.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\middleware\requireRole.js">
+        <metrics statements="7" coveredstatements="7" conditionals="6" coveredconditionals="6" methods="3" coveredmethods="3"/>
+        <line num="2" count="10" type="stmt"/>
+        <line num="3" count="6" type="cond" truecount="2" falsecount="0"/>
+        <line num="5" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="6" count="7" type="stmt"/>
+        <line num="8" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="2" type="stmt"/>
+        <line num="12" count="3" type="stmt"/>
+      </file>
+      <file name="uploadPdf.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\middleware\uploadPdf.js">
+        <metrics statements="16" coveredstatements="16" conditionals="6" coveredconditionals="6" methods="3" coveredmethods="3"/>
+        <line num="2" count="11" type="stmt"/>
+        <line num="3" count="11" type="stmt"/>
+        <line num="4" count="11" type="stmt"/>
+        <line num="6" count="11" type="stmt"/>
+        <line num="9" count="11" type="stmt"/>
+        <line num="11" count="11" type="stmt"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="15" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="16" count="3" type="stmt"/>
+        <line num="21" count="3" type="stmt"/>
+        <line num="25" count="11" type="stmt"/>
+        <line num="27" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="30" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="31" count="2" type="stmt"/>
+        <line num="34" count="11" type="stmt"/>
+        <line num="40" count="11" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.models">
+      <metrics statements="19" coveredstatements="19" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+      <file name="Appointment.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\models\Appointment.js">
+        <metrics statements="3" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="29" count="1" type="stmt"/>
+      </file>
+      <file name="Document.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\models\Document.js">
+        <metrics statements="3" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="3" count="4" type="stmt"/>
+        <line num="5" count="4" type="stmt"/>
+        <line num="61" count="4" type="stmt"/>
+      </file>
+      <file name="DocumentChunk.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\models\DocumentChunk.js">
+        <metrics statements="4" coveredstatements="4" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="3" count="8" type="stmt"/>
+        <line num="5" count="8" type="stmt"/>
+        <line num="19" count="8" type="stmt"/>
+        <line num="21" count="8" type="stmt"/>
+      </file>
+      <file name="Notification.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\models\Notification.js">
+        <metrics statements="3" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="26" count="1" type="stmt"/>
+      </file>
+      <file name="Question.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\models\Question.js">
+        <metrics statements="3" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="42" count="2" type="stmt"/>
+      </file>
+      <file name="User.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\models\User.js">
+        <metrics statements="3" coveredstatements="3" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="63" count="2" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.routes">
+      <metrics statements="194" coveredstatements="109" conditionals="111" coveredconditionals="0" methods="18" coveredmethods="3"/>
+      <file name="admin.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\admin.routes.js">
+        <metrics statements="29" coveredstatements="8" conditionals="24" coveredconditionals="0" methods="3" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="8" count="1" type="stmt"/>
+        <line num="9" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="11" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="13" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="17" count="0" type="stmt"/>
+        <line num="18" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="19" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="25" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="26" count="0" type="stmt"/>
+        <line num="30" count="1" type="stmt"/>
+        <line num="31" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="33" count="0" type="stmt"/>
+        <line num="42" count="0" type="stmt"/>
+        <line num="46" count="1" type="stmt"/>
+        <line num="47" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="48" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="50" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="51" count="0" type="stmt"/>
+        <line num="54" count="0" type="stmt"/>
+        <line num="65" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="67" count="0" type="stmt"/>
+        <line num="70" count="1" type="stmt"/>
+      </file>
+      <file name="appointments.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\appointments.routes.js">
+        <metrics statements="42" coveredstatements="11" conditionals="36" coveredconditionals="0" methods="4" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="7" count="1" type="stmt"/>
+        <line num="8" count="1" type="stmt"/>
+        <line num="11" count="1" type="stmt"/>
+        <line num="12" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="13" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="16" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="18" count="0" type="stmt"/>
+        <line num="19" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="32" count="0" type="stmt"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="45" count="1" type="stmt"/>
+        <line num="46" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="47" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="49" count="0" type="stmt"/>
+        <line num="54" count="0" type="stmt"/>
+        <line num="58" count="1" type="stmt"/>
+        <line num="59" count="0" type="stmt"/>
+        <line num="60" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="61" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="62" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="64" count="0" type="stmt"/>
+        <line num="65" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="66" count="0" type="stmt"/>
+        <line num="69" count="0" type="stmt"/>
+        <line num="78" count="0" type="stmt"/>
+        <line num="82" count="1" type="stmt"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="84" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="85" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="86" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="88" count="0" type="stmt"/>
+        <line num="89" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="90" count="0" type="stmt"/>
+        <line num="93" count="0" type="stmt"/>
+        <line num="102" count="0" type="stmt"/>
+        <line num="105" count="1" type="stmt"/>
+      </file>
+      <file name="auth.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\auth.routes.js">
+        <metrics statements="19" coveredstatements="18" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="7" count="1" type="stmt"/>
+        <line num="9" count="1" type="stmt"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="13" count="1" type="stmt"/>
+        <line num="14" count="1" type="stmt"/>
+        <line num="15" count="1" type="stmt"/>
+        <line num="16" count="1" type="stmt"/>
+        <line num="18" count="1" type="stmt"/>
+        <line num="19" count="1" type="stmt"/>
+        <line num="20" count="1" type="stmt"/>
+        <line num="22" count="1" type="stmt"/>
+        <line num="25" count="1" type="stmt"/>
+        <line num="27" count="1" type="stmt"/>
+        <line num="28" count="0" type="stmt"/>
+        <line num="31" count="1" type="stmt"/>
+      </file>
+      <file name="document.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\document.routes.js">
+        <metrics statements="15" coveredstatements="15" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="7" count="2" type="stmt"/>
+        <line num="18" count="2" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="23" count="2" type="stmt"/>
+        <line num="26" count="2" type="stmt"/>
+        <line num="29" count="2" type="stmt"/>
+        <line num="32" count="2" type="stmt"/>
+        <line num="35" count="2" type="stmt"/>
+        <line num="38" count="2" type="stmt"/>
+        <line num="41" count="2" type="stmt"/>
+        <line num="44" count="2" type="stmt"/>
+        <line num="46" count="2" type="stmt"/>
+      </file>
+      <file name="lawyers.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\lawyers.routes.js">
+        <metrics statements="34" coveredstatements="9" conditionals="47" coveredconditionals="0" methods="5" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="5" count="1" type="stmt"/>
+        <line num="8" count="1" type="stmt"/>
+        <line num="9" count="0" type="stmt"/>
+        <line num="12" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="13" count="0" type="stmt"/>
+        <line num="17" count="1" type="stmt"/>
+        <line num="18" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="20" count="0" type="stmt"/>
+        <line num="29" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="30" count="0" type="stmt"/>
+        <line num="37" count="0" type="stmt"/>
+        <line num="44" count="0" type="stmt"/>
+        <line num="48" count="1" type="stmt"/>
+        <line num="49" count="0" type="stmt"/>
+        <line num="58" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="59" count="0" type="stmt"/>
+        <line num="63" count="1" type="stmt"/>
+        <line num="64" count="0" type="stmt"/>
+        <line num="75" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="90" count="0" type="stmt"/>
+        <line num="91" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="93" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="94" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="95" count="0" type="cond" truecount="0" falsecount="4"/>
+        <line num="96" count="0" type="stmt"/>
+        <line num="98" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="101" count="0" type="cond" truecount="0" falsecount="3"/>
+        <line num="102" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="104" count="0" type="stmt"/>
+        <line num="108" count="0" type="stmt"/>
+        <line num="111" count="1" type="stmt"/>
+      </file>
+      <file name="notifications.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\notifications.routes.js">
+        <metrics statements="13" coveredstatements="6" conditionals="4" coveredconditionals="0" methods="2" coveredmethods="0"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="1" type="stmt"/>
+        <line num="7" count="0" type="stmt"/>
+        <line num="8" count="0" type="stmt"/>
+        <line num="11" count="1" type="stmt"/>
+        <line num="12" count="0" type="stmt"/>
+        <line num="13" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="15" count="0" type="cond" truecount="0" falsecount="2"/>
+        <line num="16" count="0" type="stmt"/>
+        <line num="18" count="0" type="stmt"/>
+        <line num="21" count="1" type="stmt"/>
+      </file>
+      <file name="qa.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\qa.routes.js">
+        <metrics statements="10" coveredstatements="10" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="2"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="7" count="2" type="stmt"/>
+        <line num="10" count="2" type="stmt"/>
+        <line num="11" count="1" type="stmt"/>
+        <line num="14" count="2" type="stmt"/>
+        <line num="15" count="1" type="stmt"/>
+        <line num="19" count="2" type="stmt"/>
+        <line num="21" count="2" type="stmt"/>
+      </file>
+      <file name="questions.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\questions.routes.js">
+        <metrics statements="15" coveredstatements="15" conditionals="0" coveredconditionals="0" methods="1" coveredmethods="1"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="8" count="2" type="stmt"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="13" count="2" type="stmt"/>
+        <line num="16" count="2" type="stmt"/>
+        <line num="17" count="2" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="21" count="2" type="stmt"/>
+        <line num="22" count="2" type="stmt"/>
+        <line num="25" count="2" type="stmt"/>
+        <line num="27" count="2" type="stmt"/>
+      </file>
+      <file name="search.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\search.routes.js">
+        <metrics statements="5" coveredstatements="5" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="10" count="2" type="stmt"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="13" count="2" type="stmt"/>
+      </file>
+      <file name="users.routes.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\routes\users.routes.js">
+        <metrics statements="12" coveredstatements="12" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="9" count="2" type="stmt"/>
+        <line num="12" count="2" type="stmt"/>
+        <line num="15" count="2" type="stmt"/>
+        <line num="16" count="2" type="stmt"/>
+        <line num="17" count="2" type="stmt"/>
+        <line num="18" count="2" type="stmt"/>
+        <line num="19" count="2" type="stmt"/>
+        <line num="21" count="2" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.services">
+      <metrics statements="164" coveredstatements="161" conditionals="117" coveredconditionals="95" methods="19" coveredmethods="19"/>
+      <file name="chunk.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\chunk.service.js">
+        <metrics statements="18" coveredstatements="17" conditionals="14" coveredconditionals="11" methods="1" coveredmethods="1"/>
+        <line num="10" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="11" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="14" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="18" count="4" type="stmt"/>
+        <line num="19" count="4" type="stmt"/>
+        <line num="20" count="4" type="stmt"/>
+        <line num="22" count="4" type="stmt"/>
+        <line num="23" count="7" type="stmt"/>
+        <line num="24" count="7" type="stmt"/>
+        <line num="26" count="7" type="cond" truecount="1" falsecount="1"/>
+        <line num="27" count="7" type="stmt"/>
+        <line num="28" count="7" type="stmt"/>
+        <line num="32" count="7" type="stmt"/>
+        <line num="33" count="7" type="cond" truecount="1" falsecount="1"/>
+        <line num="36" count="7" type="cond" truecount="2" falsecount="0"/>
+        <line num="39" count="4" type="stmt"/>
+        <line num="42" count="4" type="stmt"/>
+      </file>
+      <file name="documentProcess.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\documentProcess.service.js">
+        <metrics statements="36" coveredstatements="36" conditionals="6" coveredconditionals="6" methods="2" coveredmethods="2"/>
+        <line num="2" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="5" count="3" type="stmt"/>
+        <line num="6" count="3" type="stmt"/>
+        <line num="7" count="3" type="stmt"/>
+        <line num="17" count="5" type="stmt"/>
+        <line num="18" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="19" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="22" count="3" type="stmt"/>
+        <line num="23" count="3" type="stmt"/>
+        <line num="24" count="3" type="stmt"/>
+        <line num="26" count="3" type="stmt"/>
+        <line num="28" count="3" type="stmt"/>
+        <line num="30" count="2" type="stmt"/>
+        <line num="31" count="2" type="stmt"/>
+        <line num="32" count="2" type="stmt"/>
+        <line num="33" count="2" type="stmt"/>
+        <line num="36" count="2" type="stmt"/>
+        <line num="39" count="2" type="stmt"/>
+        <line num="42" count="2" type="stmt"/>
+        <line num="43" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="44" count="1" type="stmt"/>
+        <line num="45" count="2" type="stmt"/>
+        <line num="57" count="2" type="stmt"/>
+        <line num="58" count="2" type="stmt"/>
+        <line num="59" count="2" type="stmt"/>
+        <line num="60" count="2" type="stmt"/>
+        <line num="61" count="2" type="stmt"/>
+        <line num="65" count="2" type="stmt"/>
+        <line num="66" count="2" type="stmt"/>
+        <line num="68" count="2" type="stmt"/>
+        <line num="78" count="1" type="stmt"/>
+        <line num="79" count="1" type="stmt"/>
+        <line num="80" count="1" type="stmt"/>
+        <line num="81" count="1" type="stmt"/>
+        <line num="85" count="3" type="stmt"/>
+      </file>
+      <file name="embedChunks.mongo.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\embedChunks.mongo.service.js">
+        <metrics statements="18" coveredstatements="18" conditionals="8" coveredconditionals="8" methods="1" coveredmethods="1"/>
+        <line num="2" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="4" count="3" type="stmt"/>
+        <line num="7" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="8" count="1" type="stmt"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="13" count="2" type="stmt"/>
+        <line num="15" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="16" count="1" type="stmt"/>
+        <line num="19" count="1" type="stmt"/>
+        <line num="21" count="1" type="stmt"/>
+        <line num="22" count="2" type="cond" truecount="4" falsecount="0"/>
+        <line num="24" count="1" type="stmt"/>
+        <line num="25" count="1" type="stmt"/>
+        <line num="26" count="1" type="stmt"/>
+        <line num="27" count="1" type="stmt"/>
+        <line num="30" count="1" type="stmt"/>
+        <line num="37" count="3" type="stmt"/>
+      </file>
+      <file name="embedding.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\embedding.service.js">
+        <metrics statements="11" coveredstatements="11" conditionals="12" coveredconditionals="12" methods="1" coveredmethods="1"/>
+        <line num="2" count="9" type="stmt"/>
+        <line num="4" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="5" count="9" type="cond" truecount="2" falsecount="0"/>
+        <line num="8" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="12" count="3" type="stmt"/>
+        <line num="18" count="3" type="stmt"/>
+        <line num="20" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="21" count="2" type="stmt"/>
+        <line num="24" count="1" type="stmt"/>
+        <line num="27" count="9" type="stmt"/>
+      </file>
+      <file name="pdf.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\pdf.service.js">
+        <metrics statements="15" coveredstatements="15" conditionals="6" coveredconditionals="6" methods="1" coveredmethods="1"/>
+        <line num="2" count="4" type="stmt"/>
+        <line num="3" count="4" type="stmt"/>
+        <line num="4" count="4" type="stmt"/>
+        <line num="7" count="4" type="stmt"/>
+        <line num="9" count="4" type="stmt"/>
+        <line num="11" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="15" count="3" type="stmt"/>
+        <line num="18" count="3" type="stmt"/>
+        <line num="20" count="2" type="cond" truecount="4" falsecount="0"/>
+        <line num="21" count="1" type="stmt"/>
+        <line num="24" count="1" type="stmt"/>
+        <line num="29" count="1" type="stmt"/>
+        <line num="35" count="3" type="stmt"/>
+        <line num="39" count="4" type="stmt"/>
+      </file>
+      <file name="qa.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\qa.service.js">
+        <metrics statements="56" coveredstatements="54" conditionals="56" coveredconditionals="38" methods="12" coveredmethods="12"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="8" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="9" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="11" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="12" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="15" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="19" count="6" type="cond" truecount="1" falsecount="1"/>
+        <line num="20" count="6" type="cond" truecount="1" falsecount="1"/>
+        <line num="21" count="0" type="stmt"/>
+        <line num="25" count="2" type="stmt"/>
+        <line num="26" count="2" type="stmt"/>
+        <line num="28" count="2" type="stmt"/>
+        <line num="29" count="2" type="stmt"/>
+        <line num="30" count="2" type="cond" truecount="1" falsecount="1"/>
+        <line num="31" count="2" type="stmt"/>
+        <line num="32" count="2" type="stmt"/>
+        <line num="36" count="2" type="stmt"/>
+        <line num="40" count="2" type="stmt"/>
+        <line num="42" count="2" type="stmt"/>
+        <line num="43" count="2" type="cond" truecount="1" falsecount="1"/>
+        <line num="45" count="2" type="cond" truecount="3" falsecount="1"/>
+        <line num="51" count="2" type="stmt"/>
+        <line num="57" count="2" type="stmt"/>
+        <line num="73" count="2" type="cond" truecount="2" falsecount="0"/>
+        <line num="77" count="4" type="stmt"/>
+        <line num="79" count="4" type="stmt"/>
+        <line num="80" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="82" count="4" type="cond" truecount="2" falsecount="2"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="86" count="4" type="stmt"/>
+        <line num="88" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="89" count="1" type="stmt"/>
+        <line num="92" count="3" type="stmt"/>
+        <line num="93" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="95" count="3" type="cond" truecount="1" falsecount="1"/>
+        <line num="97" count="3" type="stmt"/>
+        <line num="121" count="3" type="stmt"/>
+        <line num="125" count="2" type="stmt"/>
+        <line num="174" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="176" count="5" type="cond" truecount="2" falsecount="0"/>
+        <line num="177" count="1" type="stmt"/>
+        <line num="180" count="4" type="stmt"/>
+        <line num="188" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="189" count="2" type="stmt"/>
+        <line num="196" count="2" type="stmt"/>
+        <line num="197" count="2" type="stmt"/>
+        <line num="198" count="2" type="stmt"/>
+        <line num="200" count="2" type="stmt"/>
+        <line num="201" count="2" type="stmt"/>
+        <line num="203" count="2" type="stmt"/>
+        <line num="213" count="2" type="stmt"/>
+        <line num="221" count="2" type="stmt"/>
+      </file>
+      <file name="vectorSearch.mongo.service.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\services\vectorSearch.mongo.service.js">
+        <metrics statements="10" coveredstatements="10" conditionals="15" coveredconditionals="14" methods="1" coveredmethods="1"/>
+        <line num="2" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="4" count="3" type="stmt"/>
+        <line num="7" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="8" count="4" type="cond" truecount="2" falsecount="0"/>
+        <line num="10" count="3" type="stmt"/>
+        <line num="13" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="17" count="3" type="stmt"/>
+        <line num="41" count="3" type="stmt"/>
+        <line num="44" count="3" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.utils">
+      <metrics statements="2" coveredstatements="2" conditionals="2" coveredconditionals="2" methods="1" coveredmethods="1"/>
+      <file name="document.utils.js" path="C:\Users\PC\Desktop\ALU\Mission Capstone\mufashe-mobile\backend\src\utils\document.utils.js">
+        <metrics statements="2" coveredstatements="2" conditionals="2" coveredconditionals="2" methods="1" coveredmethods="1"/>
+        <line num="2" count="3" type="cond" truecount="2" falsecount="0"/>
+        <line num="5" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>

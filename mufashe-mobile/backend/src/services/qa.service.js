@@ -1,4 +1,3 @@
-// src/services/qa.service.js
 const axios = require("axios");
 const mongoose = require("mongoose");
 
@@ -45,6 +44,8 @@ function buildContext(chunks, docMap) {
       const pages =
         c.pageStart != null && c.pageEnd != null
           ? `p.${c.pageStart}-${c.pageEnd}`
+          : c.pageStart != null
+          ? `p.${c.pageStart}`
           : "p.?";
 
       return `SOURCE [${i + 1}] — ${title} (${pages})\n${shortText(c.chunkText, 700)}\n`;
@@ -53,11 +54,6 @@ function buildContext(chunks, docMap) {
 }
 
 async function ollamaGenerate(prompt) {
-  console.log("QA SERVICE: ollamaGenerate start");
-  console.log("QA SERVICE: OLLAMA_URL =", OLLAMA_URL);
-  console.log("QA SERVICE: MODEL =", OLLAMA_CHAT_MODEL);
-  console.log("QA SERVICE: prompt length =", prompt.length);
-
   const resp = await axios.post(
     `${OLLAMA_URL}/api/generate`,
     {
@@ -65,8 +61,8 @@ async function ollamaGenerate(prompt) {
       prompt,
       stream: false,
       options: {
-        temperature: 0.2,
-        num_predict: 220,
+        temperature: 0.15,
+        num_predict: 420,
       },
     },
     {
@@ -74,15 +70,10 @@ async function ollamaGenerate(prompt) {
     }
   );
 
-  console.log("QA SERVICE: ollamaGenerate done");
   return String(resp?.data?.response || "").trim();
 }
 
 async function retrieveChunksSecure({ userId, question, topK, category, documentId }) {
-  console.log("QA SERVICE: retrieveChunksSecure start");
-  console.log("QA SERVICE: userId =", userId);
-  console.log("QA SERVICE: question =", question);
-
   const docsFilter = { status: "READY" };
 
   const cat = normalizeCategory(category);
@@ -92,29 +83,16 @@ async function retrieveChunksSecure({ userId, question, topK, category, document
     docsFilter._id = new mongoose.Types.ObjectId(documentId);
   }
 
-  console.log("QA SERVICE: docsFilter =", docsFilter);
-
   const docs = await Document.find(docsFilter).select("_id title category docType");
-  console.log("QA SERVICE: docs found =", docs.length);
 
   if (!docs.length) {
     return { docs: [], chunks: [] };
   }
 
   const allowedDocIds = docs.map((d) => d._id);
-  console.log("QA SERVICE: allowedDocIds count =", allowedDocIds.length);
-
-  console.log("QA SERVICE: creating embedding...");
   const queryVector = await createEmbedding(String(question || "").trim());
-  console.log(
-    "QA SERVICE: embedding done, length =",
-    Array.isArray(queryVector) ? queryVector.length : "not-array"
-  );
 
-  const limit = Math.min(Math.max(Number(topK) || 4, 2), 4);
-  console.log("QA SERVICE: vector search limit =", limit);
-  console.log("QA SERVICE: VECTOR_INDEX =", VECTOR_INDEX);
-  console.log("QA SERVICE: VECTOR_PATH =", VECTOR_PATH);
+  const limit = Math.min(Math.max(Number(topK) || 4, 2), 5);
 
   const chunks = await DocumentChunk.aggregate([
     {
@@ -140,12 +118,59 @@ async function retrieveChunksSecure({ userId, question, topK, category, document
     },
   ]);
 
-  console.log("QA SERVICE: chunks found =", chunks.length);
   return { docs, chunks };
 }
 
+function buildPrompt(question, contextText) {
+  return `
+You are MUFASHE, a legal information assistant for Rwanda.
+
+Your job is to help the user understand legal information in a calm, clear, and supportive way.
+Use ONLY the legal sources provided below.
+Do NOT invent laws, rights, procedures, offices, penalties, or deadlines.
+If the sources are incomplete, say that clearly.
+Do NOT say "I am sorry" unless necessary.
+Do NOT give a one-line vague answer.
+Do NOT use difficult legal language unless necessary.
+Write in simple English.
+
+VERY IMPORTANT:
+- The answer should reduce confusion, not increase it.
+- Explain what the answer may mean for the user.
+- Give practical next steps where supported by the sources.
+- Mention when the user may need a lawyer, police help, legal aid, or urgent action ONLY if supported or clearly prudent.
+- Include citation markers like [1], [2] in the relevant sentences.
+- End with one short caution line: "This is legal information, not a lawyer-client relationship."
+
+Return the answer using EXACTLY this structure:
+
+Summary:
+(2-4 short sentences in simple language)
+
+What this may mean for you:
+(plain explanation in bullets)
+
+What you can do next:
+(2-5 practical next steps in bullets)
+
+What to prepare:
+(documents, proof, records, witnesses, receipts, contracts, IDs, etc. only if relevant)
+
+Urgent note:
+(only if the matter appears urgent from the question or sources; otherwise write "No urgent warning from the available sources.")
+
+Sources used:
+([1] title, page... etc. short)
+
+Question:
+${question}
+
+Legal Sources:
+${contextText}
+`.trim();
+}
+
 async function answerQuestion({ userId, question, topK = 4, category, documentId }) {
-  console.log("========== QA SERVICE START ==========");
   const q = String(question || "").trim();
 
   if (!q) {
@@ -161,36 +186,19 @@ async function answerQuestion({ userId, question, topK = 4, category, documentId
   });
 
   if (!chunks.length) {
-    console.log("QA SERVICE: no chunks found");
     return {
       answer:
-        "I couldn’t find relevant information in your READY documents. Please process your PDFs so they become READY, or upload the correct one. Not legal advice.",
+        "Summary:\nI could not find enough relevant legal information in the available READY documents.\n\nWhat this may mean for you:\n- The correct document may not be uploaded yet.\n- The uploaded document may not be processed or marked as READY.\n- Your question may need a more specific legal source.\n\nWhat you can do next:\n- Try asking in a more specific way.\n- Upload or process the correct legal document.\n- Choose the correct category or document before asking again.\n\nWhat to prepare:\n- The relevant contract, receipt, ID, agreement, or complaint details if they relate to your question.\n\nUrgent note:\nNo urgent warning from the available sources.\n\nSources used:\n- No matching source found.\n\nThis is legal information, not a lawyer-client relationship.",
       sources: [],
     };
   }
 
-  const uniqueChunks = dedupeChunks(chunks).slice(0, 3);
-  console.log("QA SERVICE: unique chunks =", uniqueChunks.length);
-
+  const uniqueChunks = dedupeChunks(chunks).slice(0, 4);
   const docMap = new Map(docs.map((d) => [String(d._id), d]));
   const contextText = buildContext(uniqueChunks, docMap);
-  console.log("QA SERVICE: context built, length =", contextText.length);
 
-  const prompt =
-    `You are MUFASHE, a legal information assistant.\n` +
-    `Use only the sources below.\n` +
-    `Answer in simple English.\n` +
-    `If the sources are not enough, say so clearly.\n` +
-    `Do not invent laws.\n` +
-    `Use citations like [1], [2].\n` +
-    `End with: Not legal advice.\n\n` +
-    `Question:\n${q}\n\n` +
-    `Sources:\n${contextText}\n\n` +
-    `Answer briefly:\n`;
-
-  console.log("QA SERVICE: generating final answer...");
+  const prompt = buildPrompt(q, contextText);
   const answer = await ollamaGenerate(prompt);
-  console.log("QA SERVICE: final answer generated");
 
   const sources = uniqueChunks.map((c, i) => ({
     n: i + 1,
@@ -202,11 +210,10 @@ async function answerQuestion({ userId, question, topK = 4, category, documentId
     snippet: shortText(c.chunkText, 220),
   }));
 
-  console.log("QA SERVICE: sources built =", sources.length);
-  console.log("========== QA SERVICE SUCCESS ==========");
-
   return {
-    answer: answer || "I couldn’t generate an answer from the sources. Not legal advice.",
+    answer:
+      answer ||
+      "Summary:\nI could not generate a grounded answer from the available legal sources.\n\nWhat this may mean for you:\n- The system found sources, but they were not enough for a reliable explanation.\n\nWhat you can do next:\n- Rephrase your question more clearly.\n- Open a specific legal document and ask again.\n\nWhat to prepare:\n- Any document connected to your case.\n\nUrgent note:\nNo urgent warning from the available sources.\n\nSources used:\n- See listed sources.\n\nThis is legal information, not a lawyer-client relationship.",
     sources,
   };
 }

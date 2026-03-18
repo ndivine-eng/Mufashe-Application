@@ -10,6 +10,11 @@ function splitIntoChunks(text, chunkSize = 1200, overlap = 200) {
   const cleaned = String(text || "").trim();
   if (!cleaned) return [];
 
+  // FIX: prevent infinite loop
+  if (overlap >= chunkSize) {
+    throw new Error("overlap must be smaller than chunkSize");
+  }
+
   const chunks = [];
   let start = 0;
   let index = 0;
@@ -27,7 +32,7 @@ function splitIntoChunks(text, chunkSize = 1200, overlap = 200) {
     start = end - overlap;
     if (start < 0) start = 0;
 
-    // safety break to avoid infinite loops
+    // safety break to avoid infinite loops at end
     if (end === cleaned.length) break;
   }
 
