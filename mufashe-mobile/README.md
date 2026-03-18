@@ -29,6 +29,7 @@ This repository contains the **Mission Capstone MVP**, demonstrating an end-to-e
 
 ---
 
+
 ## Core Features (Implemented)
 
 ### 1) Role-Based Authentication & Access Control
@@ -335,6 +336,12 @@ npx expo start --lan
 Or:
 ```bash
 npx expo start --localhost
+```
+## ## Run the app (Development Client)
+
+Start the Expo development server:
+```bash
+npx expo start --dev-client
 ```
 
 ### MongoDB Atlas connection error

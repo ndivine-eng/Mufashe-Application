@@ -13,6 +13,16 @@
         "EXPO_PUBLIC_API_URL": "https://mufashe-application-2.onrender.com/api"
       }
     },
+    "development": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mufashe-application-2.onrender.com/api" 
+        
+      }
+    },
     "production": {
       "autoIncrement": true,
       "android": {

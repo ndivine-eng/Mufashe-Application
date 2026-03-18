@@ -1,4 +1,5 @@
 // app/(user)/admin-review-questions.tsx
+// This is a React Native screen for admin users to review submitted questions. It fetches question data from an API endpoint, displays it in a list, and allows users to approve or reject questions. The screen also handles loading states, error states, and provides options to refresh the list or book a new appointment if there are no existing bookings.
 
 import React, { useCallback, useMemo, useState } from "react";
 import {

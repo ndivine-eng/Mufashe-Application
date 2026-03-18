@@ -5,15 +5,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Alert,
   Keyboard,
-  TouchableWithoutFeedback,
   LayoutChangeEvent,
+  ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +25,7 @@ import { useT } from "../lib/i18n";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 const CONSULT_CACHE_KEY = "@mufashe_consult_session_v1";
+const NAV_HEIGHT = 84;
 
 function buildApiUrl(path: string) {
   const base = String(BASE_URL || "").replace(/\/$/, "");
@@ -73,14 +73,14 @@ export default function Consult() {
 
   const [kbVisible, setKbVisible] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
-  const [composerHeight, setComposerHeight] = useState(108);
+  const [composerHeight, setComposerHeight] = useState(96);
 
-  const listRef = useRef<FlatList<Msg>>(null);
-  const NAV_HEIGHT = 84;
+  const scrollRef = useRef<ScrollView>(null);
+  const didLoadSessionRef = useRef(false);
 
   const scrollToBottom = useCallback((animated = true) => {
     requestAnimationFrame(() => {
-      listRef.current?.scrollToEnd({ animated });
+      scrollRef.current?.scrollToEnd({ animated });
     });
   }, []);
 
@@ -91,7 +91,7 @@ export default function Consult() {
     const showSub = Keyboard.addListener(showEvent as any, (e) => {
       setKbVisible(true);
       setKbHeight(e?.endCoordinates?.height ?? 0);
-      setTimeout(() => scrollToBottom(true), 90);
+      setTimeout(() => scrollToBottom(true), 100);
     });
 
     const hideSub = Keyboard.addListener(hideEvent as any, () => {
@@ -109,25 +109,22 @@ export default function Consult() {
     const loadSession = async () => {
       try {
         const raw = await AsyncStorage.getItem(CONSULT_CACHE_KEY);
-        if (!raw) return;
+        if (!raw) {
+          didLoadSessionRef.current = true;
+          return;
+        }
 
         const parsed = JSON.parse(raw);
 
-        if (Array.isArray(parsed?.messages)) {
-          setMessages(parsed.messages);
-        }
+        if (Array.isArray(parsed?.messages)) setMessages(parsed.messages);
+        if (typeof parsed?.input === "string") setInput(parsed.input);
+        if (typeof parsed?.loading === "boolean") setLoading(parsed.loading);
 
-        if (typeof parsed?.input === "string") {
-          setInput(parsed.input);
-        }
-
-        if (typeof parsed?.loading === "boolean") {
-          setLoading(parsed.loading);
-        }
-
-        setTimeout(() => scrollToBottom(false), 120);
+        setTimeout(() => scrollToBottom(false), 150);
       } catch (e) {
         console.log("Failed to load consult session", e);
+      } finally {
+        didLoadSessionRef.current = true;
       }
     };
 
@@ -137,29 +134,26 @@ export default function Consult() {
   useEffect(() => {
     const saveSession = async () => {
       try {
-        const payload = {
-          messages,
-          input,
-          loading,
-          documentId: documentId || null,
-          category: category || null,
-          updatedAt: Date.now(),
-        };
-
-        await AsyncStorage.setItem(CONSULT_CACHE_KEY, JSON.stringify(payload));
+        await AsyncStorage.setItem(
+          CONSULT_CACHE_KEY,
+          JSON.stringify({
+            messages,
+            input,
+            loading,
+            documentId: documentId || null,
+            category: category || null,
+            updatedAt: Date.now(),
+          })
+        );
       } catch (e) {
         console.log("Failed to save consult session", e);
       }
     };
 
-    saveSession();
-  }, [messages, input, loading, documentId, category]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => scrollToBottom(true), 80);
+    if (didLoadSessionRef.current) {
+      saveSession();
     }
-  }, [messages, scrollToBottom]);
+  }, [messages, input, loading, documentId, category]);
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
 
@@ -179,10 +173,12 @@ export default function Consult() {
     setMessages((prev) => [...prev, userMsg, pendingMsg]);
     setInput("");
     setLoading(true);
-    setTimeout(() => scrollToBottom(true), 50);
+
+    setTimeout(() => scrollToBottom(true), 120);
 
     try {
       const token = await AsyncStorage.getItem("token");
+
       if (!token) {
         Alert.alert("Session", "Please login again.");
         router.replace("/(auth)/login");
@@ -190,16 +186,18 @@ export default function Consult() {
       }
 
       const url = buildApiUrl("/qa/ask");
+
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({
           question: q,
-          topK: 6,
+          topK: 3,
           ...(documentId ? { documentId } : {}),
           ...(category ? { category } : {}),
         }),
@@ -210,7 +208,11 @@ export default function Consult() {
 
       if (!res.ok) {
         const msg = data?.message || `Request failed (${res.status})`;
-        throw new Error(looksLikeHtml(msg) ? "Server returned HTML. Check API URL." : msg);
+        throw new Error(
+          looksLikeHtml(text)
+            ? "Server returned HTML instead of JSON. Check API route or tunnel."
+            : msg
+        );
       }
 
       const answer = (data?.answer || data?.finalAnswer || "No answer.").toString();
@@ -229,7 +231,7 @@ export default function Consult() {
         )
       );
 
-      setTimeout(() => scrollToBottom(true), 100);
+      setTimeout(() => scrollToBottom(true), 160);
     } catch (e: any) {
       const msg = String(e?.message || "Unknown error");
 
@@ -244,6 +246,8 @@ export default function Consult() {
             : m
         )
       );
+
+      setTimeout(() => scrollToBottom(true), 160);
     } finally {
       setLoading(false);
     }
@@ -269,234 +273,194 @@ export default function Consult() {
     ]);
   }, []);
 
-  const handleComposerLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const nextHeight = Math.ceil(e.nativeEvent.layout.height);
-      if (nextHeight > 0 && Math.abs(nextHeight - composerHeight) > 6) {
-        setComposerHeight(nextHeight);
-      }
-    },
-    [composerHeight]
-  );
+  const handleComposerLayout = useCallback((e: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(e.nativeEvent.layout.height);
+    if (nextHeight > 0) setComposerHeight(nextHeight);
+  }, []);
 
-  const inputBottom = kbVisible
-    ? Math.max(kbHeight - insets.bottom, 8)
-    : NAV_HEIGHT + 8;
-
-  const listBottomSpace =
-    composerHeight + (kbVisible ? 28 : NAV_HEIGHT + insets.bottom + 28);
-
-  const renderItem = ({ item }: { item: Msg }) => {
-    const isUser = item.role === "user";
-
-    return (
-      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowAi]}>
-        {!isUser && (
-          <View style={styles.aiAvatar}>
-            <Ionicons
-              name={item.pending ? "time-outline" : "sparkles-outline"}
-              size={18}
-              color="#8B5CF6"
-            />
-          </View>
-        )}
-
-        <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          {!isUser && (
-            <View style={styles.assistantTop}>
-              <Text style={styles.assistantName}>Mufashe AI</Text>
-              <Text style={styles.assistantHint}>
-                {item.pending ? "Preparing response..." : "Legal guidance assistant"}
-              </Text>
-            </View>
-          )}
-
-          <Text style={[styles.msgText, isUser ? styles.userText : styles.aiText]}>
-            {item.text}
-          </Text>
-
-          {"sources" in item && item.sources?.length ? (
-            <View style={styles.sourcesCard}>
-              <View style={styles.sourcesHeader}>
-                <View style={styles.sourcesIconWrap}>
-                  <Ionicons name="document-text-outline" size={15} color="#8B5CF6" />
-                </View>
-                <Text style={styles.sourcesTitle}>{t("sources")}</Text>
-              </View>
-
-              {item.sources.slice(0, 6).map((s, idx) => (
-                <View key={`${String(s.n ?? idx)}-${idx}`} style={styles.sourceItem}>
-                  <View style={styles.sourceBadge}>
-                    <Text style={styles.sourceBadgeText}>{s.n ?? idx + 1}</Text>
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sourceText} numberOfLines={2}>
-                      {s.title || "Document"}
-                    </Text>
-
-                    {s.pageStart != null ? (
-                      <Text style={styles.sourceMeta}>
-                        Page {s.pageStart}
-                        {s.pageEnd != null && s.pageEnd !== s.pageStart ? ` - ${s.pageEnd}` : ""}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      </View>
-    );
-  };
+  const inputBottom = kbVisible ? Math.max(kbHeight - insets.bottom, 8) : NAV_HEIGHT + 8;
+  const contentBottomSpace = composerHeight + (kbVisible ? 28 : NAV_HEIGHT + insets.bottom + 36);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.headerWrap}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.topIconBtn}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="chevron-back" size={20} color={theme.text} />
+          </TouchableOpacity>
+
+          <View style={styles.titleWrap}>
+            <Text style={styles.title}>{t("consult")}</Text>
+            <Text style={styles.titleSub}>Legal Q&A</Text>
+          </View>
+
+          <TouchableOpacity onPress={clearChat} style={styles.topIconBtn} activeOpacity={0.9}>
+            <Ionicons name="trash-outline" size={18} color={theme.text} />
+          </TouchableOpacity>
+        </View>
+
+        {documentId ? (
+          <View style={styles.contextWrap}>
+            <View style={styles.contextPill}>
+              <Ionicons name="document-text-outline" size={14} color={theme.textSub} />
+              <Text style={styles.contextText} numberOfLines={1}>
+                {settingsHint(category)}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: contentBottomSpace }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.headerWrap}>
-            <View style={styles.topBar}>
+          {messages.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="chatbubble-ellipses-outline" size={24} color="#8B5CF6" />
+              </View>
+              <Text style={styles.emptyTitle}>Start your consultation</Text>
+              <Text style={styles.emptyText}>
+                Ask a legal question and read the answer comfortably.
+              </Text>
+            </View>
+          ) : (
+            messages.map((item) => {
+              const isUser = item.role === "user";
+
+              return (
+                <View
+                  key={item.id}
+                  style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowAi]}
+                >
+                  {!isUser && (
+                    <View style={styles.aiAvatar}>
+                      {item.pending ? (
+                        <ActivityIndicator size="small" color="#8B5CF6" />
+                      ) : (
+                        <Ionicons name="sparkles-outline" size={16} color="#8B5CF6" />
+                      )}
+                    </View>
+                  )}
+
+                  <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
+                    {!isUser && (
+                      <View style={styles.assistantTop}>
+                        <Text style={styles.assistantName}>Mufashe AI</Text>
+                      </View>
+                    )}
+
+                    {isUser ? (
+                      <Text style={[styles.msgText, styles.userText]}>{item.text}</Text>
+                    ) : (
+                      <ScrollView
+                        style={styles.answerScroll}
+                        contentContainerStyle={styles.answerScrollContent}
+                        nestedScrollEnabled
+                        showsVerticalScrollIndicator
+                      >
+                        <Text style={[styles.msgText, styles.aiText]}>{item.text}</Text>
+                      </ScrollView>
+                    )}
+
+                    {"sources" in item && item.sources?.length ? (
+                      <View style={styles.sourcesCard}>
+                        <Text style={styles.sourcesTitle}>{t("sources")}</Text>
+
+                        {item.sources.slice(0, 4).map((s, idx) => (
+                          <View key={`${String(s.n ?? idx)}-${idx}`} style={styles.sourceItem}>
+                            <View style={styles.sourceBadge}>
+                              <Text style={styles.sourceBadgeText}>{s.n ?? idx + 1}</Text>
+                            </View>
+
+                            <View style={styles.sourceTextWrap}>
+                              <Text style={styles.sourceText}>{s.title || "Document"}</Text>
+
+                              {s.pageStart != null ? (
+                                <Text style={styles.sourceMeta}>
+                                  Page {s.pageStart}
+                                  {s.pageEnd != null && s.pageEnd !== s.pageStart
+                                    ? ` - ${s.pageEnd}`
+                                    : ""}
+                                </Text>
+                              ) : null}
+
+                              {!!s.snippet ? (
+                                <Text style={styles.sourceSnippet} numberOfLines={3}>
+                                  {s.snippet}
+                                </Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+
+        <View
+          style={[styles.inputArea, { bottom: inputBottom }]}
+          onLayout={handleComposerLayout}
+        >
+          <View style={styles.inputShell}>
+            <View style={styles.inputTopRow}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder={t("askLegalQuestion")}
+                placeholderTextColor={theme.textSub}
+                style={styles.input}
+                multiline
+                textAlignVertical="top"
+                returnKeyType="send"
+                blurOnSubmit={false}
+                onFocus={() => setTimeout(() => scrollToBottom(true), 100)}
+                onSubmitEditing={() => {
+                  if (Platform.OS !== "ios") send();
+                }}
+              />
+            </View>
+
+            <View style={styles.inputFooter}>
+              <Text style={styles.inputHint}>
+                {loading ? "Generating answer..." : "Ask clearly and briefly"}
+              </Text>
+
               <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.topIconBtn}
+                onPress={send}
+                disabled={!canSend}
+                style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
                 activeOpacity={0.9}
               >
-                <Ionicons name="chevron-back" size={20} color={theme.text} />
-              </TouchableOpacity>
-
-              <View style={styles.titleWrap}>
-                <Text style={styles.title}>{t("consult")}</Text>
-                <Text style={styles.titleSub}>Ask legal questions and get guided answers</Text>
-              </View>
-
-              <TouchableOpacity onPress={clearChat} style={styles.topIconBtn} activeOpacity={0.9}>
-                <Ionicons name="trash-outline" size={18} color={theme.text} />
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="send" size={14} color="#fff" />
+                    <Text style={styles.sendText}>Send</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
-
-            <View style={styles.heroCard}>
-              <View style={styles.heroLeft}>
-                <View style={styles.heroIcon}>
-                  <Ionicons name="shield-checkmark-outline" size={22} color="#8B5CF6" />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.heroTitle}>Describe your legal issue clearly</Text>
-                  <Text style={styles.heroText}>
-                    Ask about family, land, labor, rights, contracts, or legal procedures.
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {documentId ? (
-              <View style={styles.contextPill}>
-                <Ionicons name="document-text-outline" size={16} color={theme.textSub} />
-                <Text style={styles.contextText} numberOfLines={1}>
-                  {settingsHint(category)}
-                </Text>
-              </View>
-            ) : null}
           </View>
+        </View>
 
-          <View style={styles.listWrap}>
-            <FlatList
-              ref={listRef}
-              data={messages}
-              keyExtractor={(m) => m.id}
-              renderItem={renderItem}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                styles.listContent,
-                { paddingBottom: listBottomSpace },
-              ]}
-              onContentSizeChange={() => scrollToBottom(false)}
-              ListEmptyComponent={
-                <View style={styles.emptyWrap}>
-                  <View style={styles.emptyIcon}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={28} color="#8B5CF6" />
-                  </View>
-
-                  <Text style={styles.emptyTitle}>Start your consultation</Text>
-                  <Text style={styles.emptyText}>
-                    Type your question below. Mufashe can help explain legal information in a simpler way.
-                  </Text>
-
-                  <View style={styles.suggestionRow}>
-                    <View style={styles.suggestionChip}>
-                      <Text style={styles.suggestionChipText}>Land dispute</Text>
-                    </View>
-                    <View style={styles.suggestionChip}>
-                      <Text style={styles.suggestionChipText}>Labor rights</Text>
-                    </View>
-                    <View style={styles.suggestionChip}>
-                      <Text style={styles.suggestionChipText}>Family law</Text>
-                    </View>
-                  </View>
-                </View>
-              }
-            />
-          </View>
-
-          <View
-            style={[styles.inputArea, { bottom: inputBottom }]}
-            onLayout={handleComposerLayout}
-          >
-            <View style={styles.inputShell}>
-              <View style={styles.inputTopRow}>
-                <View style={styles.inputIconWrap}>
-                  <Ionicons name="create-outline" size={18} color="#8B5CF6" />
-                </View>
-
-                <TextInput
-                  value={input}
-                  onChangeText={setInput}
-                  placeholder={t("askLegalQuestion")}
-                  placeholderTextColor={theme.textSub}
-                  style={styles.input}
-                  multiline
-                  textAlignVertical="top"
-                  returnKeyType="send"
-                  blurOnSubmit={false}
-                  onFocus={() => setTimeout(() => scrollToBottom(true), 120)}
-                  onSubmitEditing={() => {
-                    if (Platform.OS !== "ios") send();
-                  }}
-                />
-              </View>
-
-              <View style={styles.inputFooter}>
-                <Text style={styles.inputHint}>
-                  {loading ? "Answer is loading..." : "Be specific for better answers"}
-                </Text>
-
-                <TouchableOpacity
-                  onPress={send}
-                  disabled={!canSend}
-                  style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-                  activeOpacity={0.9}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="send" size={16} color="#fff" />
-                      <Text style={styles.sendText}>Send</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          {!kbVisible ? <BottomNav /> : null}
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+        {!kbVisible ? <BottomNav /> : null}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 
@@ -516,9 +480,7 @@ function makeStyles(theme: any, s: number) {
   const blue = theme?.primary ?? theme?.blue ?? "#8B5CF6";
 
   return {
-    flex: {
-      flex: 1,
-    },
+    flex: { flex: 1 },
 
     safe: {
       flex: 1,
@@ -526,33 +488,24 @@ function makeStyles(theme: any, s: number) {
     },
 
     headerWrap: {
-      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 14,
       paddingTop: 4,
       paddingBottom: 8,
       backgroundColor: bg,
     },
 
-    topBar: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 14,
-    },
-
     topIconBtn: {
-      width: 42,
-      height: 42,
+      width: 40,
+      height: 40,
       borderRadius: 14,
       backgroundColor: card,
       borderWidth: 1,
       borderColor: border,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: "#000",
-      shadowOpacity: 0.04,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 2,
     },
 
     titleWrap: {
@@ -562,105 +515,65 @@ function makeStyles(theme: any, s: number) {
     },
 
     title: {
-      fontSize: 18 * s,
+      fontSize: 17 * s,
       fontWeight: "900",
       color: text,
-      letterSpacing: -0.2,
     },
 
     titleSub: {
       marginTop: 2,
-      fontSize: 11.5 * s,
+      fontSize: 11 * s,
       color: textSub,
       fontWeight: "600",
-      textAlign: "center",
     },
 
-    heroCard: {
-      backgroundColor: card,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: border,
-      padding: 14,
-      shadowColor: "#000",
-      shadowOpacity: 0.04,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 2,
-      marginBottom: 10,
-    },
-
-    heroLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-
-    heroIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
-      backgroundColor: "#F3E8FF",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    heroTitle: {
-      fontSize: 14 * s,
-      fontWeight: "900",
-      color: text,
-      marginBottom: 4,
-    },
-
-    heroText: {
-      fontSize: 12 * s,
-      lineHeight: 18,
-      color: textSub,
-      fontWeight: "600",
+    contextWrap: {
+      paddingHorizontal: 14,
+      paddingBottom: 8,
     },
 
     contextPill: {
       alignSelf: "flex-start",
-      marginTop: 2,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: border,
       backgroundColor: card,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
       maxWidth: "100%",
     },
 
     contextText: {
       color: textSub,
-      fontWeight: "800",
-      fontSize: 12 * s,
+      fontWeight: "700",
+      fontSize: 11 * s,
+      marginLeft: 6,
+      flexShrink: 1,
     },
 
-    listWrap: {
+    scroll: {
       flex: 1,
     },
 
-    listContent: {
-      paddingHorizontal: 16,
-      paddingTop: 10,
+    scrollContent: {
+      paddingHorizontal: 14,
+      paddingTop: 6,
       flexGrow: 1,
     },
 
     emptyWrap: {
       alignItems: "center",
       justifyContent: "center",
-      paddingTop: 36,
-      paddingHorizontal: 20,
+      paddingTop: 72,
+      paddingHorizontal: 24,
     },
 
     emptyIcon: {
-      width: 72,
-      height: 72,
-      borderRadius: 24,
+      width: 62,
+      height: 62,
+      borderRadius: 20,
       backgroundColor: "#F3E8FF",
       alignItems: "center",
       justifyContent: "center",
@@ -668,7 +581,7 @@ function makeStyles(theme: any, s: number) {
     },
 
     emptyTitle: {
-      fontSize: 18 * s,
+      fontSize: 17 * s,
       fontWeight: "900",
       color: text,
       textAlign: "center",
@@ -684,32 +597,9 @@ function makeStyles(theme: any, s: number) {
       maxWidth: 300,
     },
 
-    suggestionRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "center",
-      gap: 8,
-      marginTop: 16,
-    },
-
-    suggestionChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: card,
-      borderWidth: 1,
-      borderColor: border,
-    },
-
-    suggestionChipText: {
-      color: blue,
-      fontSize: 12 * s,
-      fontWeight: "800",
-    },
-
     msgRow: {
       flexDirection: "row",
-      marginBottom: 14,
+      marginBottom: 16,
       alignItems: "flex-end",
     },
 
@@ -722,19 +612,20 @@ function makeStyles(theme: any, s: number) {
     },
 
     aiAvatar: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       backgroundColor: "#F3E8FF",
       alignItems: "center",
       justifyContent: "center",
       marginRight: 8,
-      marginBottom: 8,
+      marginBottom: 6,
     },
 
     bubble: {
-      maxWidth: "86%",
-      padding: 14,
+      maxWidth: "88%",
+      paddingHorizontal: 14,
+      paddingVertical: 12,
       borderRadius: 20,
       borderWidth: 1,
     },
@@ -749,47 +640,40 @@ function makeStyles(theme: any, s: number) {
       backgroundColor: card,
       borderColor: border,
       borderBottomLeftRadius: 8,
-      shadowColor: "#000",
-      shadowOpacity: 0.03,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 1,
     },
 
     assistantTop: {
-      marginBottom: 8,
-      paddingBottom: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: border,
+      marginBottom: 6,
     },
 
     assistantName: {
-      fontSize: 12.5 * s,
+      fontSize: 11.5 * s,
       fontWeight: "900",
       color: text,
     },
 
-    assistantHint: {
-      fontSize: 10.5 * s,
-      color: textSub,
-      marginTop: 2,
-      fontWeight: "700",
+    answerScroll: {
+      maxHeight: 260,
+    },
+
+    answerScrollContent: {
+      paddingRight: 4,
     },
 
     msgText: {
-      lineHeight: 21,
+      lineHeight: 24,
     },
 
     userText: {
       color: "#fff",
       fontWeight: "700",
-      fontSize: 13.5 * s,
+      fontSize: 14 * s,
     },
 
     aiText: {
       color: text,
-      fontWeight: "700",
-      fontSize: 13.5 * s,
+      fontWeight: "500",
+      fontSize: 14 * s,
     },
 
     sourcesCard: {
@@ -797,40 +681,24 @@ function makeStyles(theme: any, s: number) {
       borderWidth: 1,
       borderColor: border,
       backgroundColor: muted,
-      borderRadius: 16,
+      borderRadius: 14,
       padding: 10,
-    },
-
-    sourcesHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-
-    sourcesIconWrap: {
-      width: 26,
-      height: 26,
-      borderRadius: 10,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
     },
 
     sourcesTitle: {
       fontWeight: "900",
       color: text,
-      fontSize: 12.5 * s,
+      fontSize: 12 * s,
+      marginBottom: 6,
     },
 
     sourceItem: {
       flexDirection: "row",
       alignItems: "flex-start",
-      gap: 8,
       backgroundColor: "#FFFFFF",
       borderRadius: 12,
-      padding: 10,
-      marginTop: 8,
+      padding: 9,
+      marginTop: 7,
     },
 
     sourceBadge: {
@@ -842,80 +710,84 @@ function makeStyles(theme: any, s: number) {
       justifyContent: "center",
       paddingHorizontal: 6,
       marginTop: 1,
+      marginRight: 8,
     },
 
     sourceBadgeText: {
       color: "#7C3AED",
       fontWeight: "900",
-      fontSize: 11 * s,
+      fontSize: 10 * s,
+    },
+
+    sourceTextWrap: {
+      flex: 1,
     },
 
     sourceText: {
       color: text,
       fontWeight: "800",
-      fontSize: 11.5 * s,
+      fontSize: 11 * s,
       lineHeight: 16,
     },
 
     sourceMeta: {
       color: textSub,
       fontWeight: "700",
+      fontSize: 10 * s,
+      marginTop: 2,
+    },
+
+    sourceSnippet: {
+      color: textSub,
       fontSize: 10.5 * s,
-      marginTop: 3,
+      lineHeight: 16,
+      marginTop: 4,
+      fontWeight: "500",
     },
 
     inputArea: {
       position: "absolute",
       left: 0,
       right: 0,
-      paddingHorizontal: 14,
-      paddingTop: 8,
-      paddingBottom: 8,
+      paddingHorizontal: 12,
+      paddingTop: 4,
+      paddingBottom: 4,
       backgroundColor: "transparent",
     },
 
     inputShell: {
       backgroundColor: card,
-      borderRadius: 22,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: border,
-      padding: 12,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 10,
       shadowColor: "#000",
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
       shadowOffset: { width: 0, height: 4 },
-      elevation: 4,
+      elevation: 3,
     },
 
     inputTopRow: {
       flexDirection: "row",
       alignItems: "flex-start",
-      gap: 10,
-    },
-
-    inputIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: "#F3E8FF",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: 2,
     },
 
     input: {
       flex: 1,
       color: text,
       fontSize: 14 * s,
-      fontWeight: "700",
-      maxHeight: 110,
+      fontWeight: "500",
       minHeight: 42,
-      paddingTop: 8,
-      paddingBottom: 8,
+      maxHeight: 110,
+      paddingTop: 6,
+      paddingBottom: 6,
     },
 
     inputFooter: {
-      marginTop: 10,
+      marginTop: 8,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
@@ -923,19 +795,20 @@ function makeStyles(theme: any, s: number) {
 
     inputHint: {
       color: textSub,
-      fontSize: 11 * s,
+      fontSize: 10.5 * s,
       fontWeight: "700",
+      flex: 1,
+      marginRight: 8,
     },
 
     sendBtn: {
-      minWidth: 88,
-      height: 44,
-      borderRadius: 14,
+      minWidth: 84,
+      height: 38,
+      borderRadius: 12,
       backgroundColor: blue,
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",
-      gap: 6,
       paddingHorizontal: 14,
     },
 
@@ -946,7 +819,8 @@ function makeStyles(theme: any, s: number) {
     sendText: {
       color: "#fff",
       fontWeight: "900",
-      fontSize: 13 * s,
+      fontSize: 12 * s,
+      marginLeft: 5,
     },
   };
 }
