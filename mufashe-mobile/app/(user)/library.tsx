@@ -1,8 +1,4 @@
 // app/(user)/library.tsx
-// This file implements the Library screen of the Mufashe mobile app, where users can browse, search, and read legal documents.
-// It includes features such as filtering by category, saving favorite documents, and asking questions about specific documents.
-// The screen fetches document data from the backend API and displays it in a user-friendly interface with support for both English and Kinyarwanda languages.
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -21,8 +17,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BottomNav from "../../components/BottomNav";
-
-import { useAppSettings, Language } from "../lib/appSettings";
+import { useAppSettings } from "../lib/appSettings";
 import { useT } from "../lib/i18n";
 
 type Doc = {
@@ -33,6 +28,8 @@ type Doc = {
   status: "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
   jurisdiction?: string;
   createdAt?: string;
+  readCount?: number;
+  lastReadAt?: string;
 };
 
 type DocDetails = Doc & {
@@ -91,7 +88,7 @@ function extractReadableText(doc: Partial<DocDetails> | null) {
   );
 }
 
-async function apiGetPublic(path: string) {
+async function apiGet(path: string) {
   const token = await AsyncStorage.getItem("token");
   const url = joinUrl(BASE_URL, path);
 
@@ -114,16 +111,42 @@ async function apiGetPublic(path: string) {
   return data;
 }
 
+async function apiPost(path: string, body?: any) {
+  const token = await AsyncStorage.getItem("token");
+  const url = joinUrl(BASE_URL, path);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body || {}),
+  });
+
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text };
+  }
+
+  if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
+  return data;
+}
+
 const FILTERS = [
-  { key: "all" },
-  { key: "land" },
-  { key: "labor" },
-  { key: "family" },
-  { key: "business" },
+  { key: "all", icon: "apps-outline" },
+  { key: "land", icon: "map-outline" },
+  { key: "labor", icon: "briefcase-outline" },
+  { key: "family", icon: "people-outline" },
+  { key: "business", icon: "business-outline" },
 ] as const;
 
 export default function LibraryScreen() {
-  const { theme, scale, settings, updateSettings } = useAppSettings();
+  const { theme, scale, settings } = useAppSettings();
   const t = useT();
   const styles = useMemo(() => StyleSheet.create(makeStyles(theme, scale)), [theme, scale]);
 
@@ -220,8 +243,8 @@ export default function LibraryScreen() {
       setErrorMsg(null);
       setLoading(true);
 
-      const res = await apiGetPublic(queryPath);
-      setItems(res?.items || []);
+      const res = await apiGet(queryPath);
+      setItems(res?.items || res?.documents || []);
     } catch (e: any) {
       setItems([]);
       const msg = String(e?.message || "Failed to load documents");
@@ -234,23 +257,24 @@ export default function LibraryScreen() {
   const onRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      const res = await apiGetPublic(queryPath);
-      setItems(res?.items || []);
+      const res = await apiGet(queryPath);
+      setItems(res?.items || res?.documents || []);
       await loadSavedDocs();
     } catch (e: any) {
-      setErrorMsg(e?.message || "Failed to refresh");
+      const msg = String(e?.message || "Failed to refresh");
+      setErrorMsg(msg);
     } finally {
       setRefreshing(false);
     }
   }, [queryPath, loadSavedDocs]);
 
   useEffect(() => {
-    loadDocs();
     loadSavedDocs();
-  }, [loadDocs, loadSavedDocs]);
+  }, [loadSavedDocs]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
     debounceRef.current = setTimeout(() => {
       loadDocs();
     }, 350);
@@ -258,24 +282,12 @@ export default function LibraryScreen() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [filter, q, loadDocs]);
+  }, [q, filter, loadDocs]);
 
-  const openAskAboutDoc = useCallback((doc: Doc) => {
-    router.push({
-      pathname: "/(user)/consult",
-      params: {
-        documentId: doc._id,
-        category: doc.category,
-      },
-    });
-  }, []);
-
-  const pickLanguage = useCallback(
-    (lang: Language) => {
-      updateSettings({ language: lang });
-    },
-    [updateSettings]
-  );
+  const visibleItems = useMemo(() => {
+    const base = showSavedOnly ? items.filter((item) => savedIds.includes(item._id)) : items;
+    return base;
+  }, [items, savedIds, showSavedOnly]);
 
   const openReader = useCallback(async (doc: Doc) => {
     try {
@@ -284,7 +296,7 @@ export default function LibraryScreen() {
       setReaderError(null);
       setReaderDoc(null);
 
-      const res = await apiGetPublic(`/documents/${doc._id}`);
+      const res = await apiGet(`/documents/${doc._id}`);
       const detail = res?.item || res?.document || res;
 
       const merged: DocDetails = {
@@ -293,6 +305,12 @@ export default function LibraryScreen() {
       };
 
       setReaderDoc(merged);
+
+      try {
+        await apiPost(`/documents/${doc._id}/read`, { action: "READ" });
+      } catch (readErr) {
+        console.log("Failed to record read event:", readErr);
+      }
     } catch (e: any) {
       setReaderError(e?.message || "Failed to open document");
     } finally {
@@ -307,716 +325,527 @@ export default function LibraryScreen() {
     setReaderLoading(false);
   }, []);
 
-  const displayedItems = useMemo(() => {
-    if (!showSavedOnly) return items;
-    return items.filter((doc) => savedIds.includes(doc._id));
-  }, [items, savedIds, showSavedOnly]);
-
-  const loadingDocsLabel =
-    settings.language === "Kinyarwanda" ? "Birimo gutegurwa inyandiko…" : "Loading documents…";
+  const askAboutDocument = useCallback((doc: Doc) => {
+    router.push({
+      pathname: "/(user)/consult",
+      params: {
+        documentId: doc._id,
+        title: doc.title,
+        category: doc.category,
+      },
+    });
+  }, []);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.topBar}>
+        <Text style={styles.title}>
+          {settings.language === "Kinyarwanda" ? "Isomero ry'Amategeko" : "Legal Library"}
+        </Text>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => setShowSavedOnly((prev) => !prev)}
+          activeOpacity={0.85}
         >
-          {/* Top bar */}
-          <View style={styles.topBar}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.9}>
-              <Ionicons name="chevron-back" size={18} color={theme.text} />
-            </TouchableOpacity>
+          <Ionicons
+            name={showSavedOnly ? "bookmark" : "bookmark-outline"}
+            size={20}
+            color={theme.text}
+          />
+        </TouchableOpacity>
+      </View>
 
-            <Text style={styles.title}>{t("library")}</Text>
+      <View style={styles.searchWrap}>
+        <Ionicons name="search-outline" size={18} color={theme.textSub} />
+        <TextInput
+          value={q}
+          onChangeText={setQ}
+          placeholder={settings.language === "Kinyarwanda" ? "Shaka inyandiko." : "Search documents."}
+          placeholderTextColor={theme.textSub}
+          style={styles.searchInput}
+        />
+      </View>
 
-            <TouchableOpacity
-              onPress={() => setShowSavedOnly((prev) => !prev)}
-              style={[styles.iconBtn, showSavedOnly && styles.iconBtnActive]}
-              activeOpacity={0.9}
-            >
-              <Ionicons
-                name={savedIds.length > 0 ? "bookmark" : "bookmark-outline"}
-                size={18}
-                color={showSavedOnly ? "#fff" : theme.text}
-              />
-            </TouchableOpacity>
-          </View>
+      <View style={styles.filtersWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {FILTERS.map((f) => {
+            const active = filter === f.key;
+            const tint = f.key === "all" ? "#0F3D63" : tagColorByCategory(f.key);
 
-          {/* Language pills */}
-          <View style={styles.segment}>
-            <TouchableOpacity
-              style={[styles.segItem, settings.language === "English" && styles.segActive]}
-              onPress={() => pickLanguage("English")}
-              activeOpacity={0.9}
-            >
-              <Text style={[styles.segText, settings.language === "English" && styles.segTextActive]}>
-                English
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.segItem, settings.language === "Kinyarwanda" && styles.segActive]}
-              onPress={() => pickLanguage("Kinyarwanda")}
-              activeOpacity={0.9}
-            >
-              <Text
+            return (
+              <TouchableOpacity
+                key={f.key}
                 style={[
-                  styles.segText,
-                  settings.language === "Kinyarwanda" && styles.segTextActive,
+                  styles.filterChip,
+                  active && { backgroundColor: tint, borderColor: tint },
                 ]}
+                onPress={() => setFilter(f.key)}
+                activeOpacity={0.85}
               >
-                Kinyarwanda
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Search */}
-          <View style={styles.searchWrap}>
-            <Ionicons name="search-outline" size={18} color={theme.textSub} style={{ marginRight: 8 }} />
-            <TextInput
-              value={q}
-              onChangeText={setQ}
-              placeholder={t("searchDocs")}
-              placeholderTextColor={theme.textSub}
-              style={styles.searchInput}
-              returnKeyType="search"
-              onSubmitEditing={loadDocs}
-            />
-            {q.length > 0 && (
-              <TouchableOpacity onPress={() => setQ("")} activeOpacity={0.8}>
-                <Ionicons name="close-circle" size={18} color={theme.textSub} />
+                <Ionicons
+                  name={f.icon}
+                  size={17}
+                  color={active ? "#fff" : tint}
+                  style={styles.filterChipIcon}
+                />
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {filterLabel(f.key)}
+                </Text>
               </TouchableOpacity>
-            )}
-          </View>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-          {/* Filters */}
-          <View style={styles.pillsRow}>
-            {FILTERS.map((f) => {
-              const active = filter === f.key;
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" />
+          <Text style={styles.muted}>
+            {settings.language === "Kinyarwanda" ? "Turimo kuzana inyandiko..." : "Loading documents..."}
+          </Text>
+        </View>
+      ) : errorMsg ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={28} color="#DC2626" />
+          <Text style={styles.muted}>{errorMsg}</Text>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+        >
+          {visibleItems.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="folder-open-outline" size={28} color={theme.textSub} />
+              <Text style={styles.muted}>
+                {settings.language === "Kinyarwanda" ? "Nta nyandiko zabonetse" : "No documents found"}
+              </Text>
+            </View>
+          ) : (
+            visibleItems.map((doc) => {
+              const saved = savedIds.includes(doc._id);
+              const textColor = tagColorByCategory(doc.category);
+
               return (
-                <TouchableOpacity
-                  key={f.key}
-                  style={[styles.pill, active && styles.pillActive]}
-                  onPress={() => setFilter(f.key)}
-                  activeOpacity={0.9}
-                >
-                  <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                    {filterLabel(f.key)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Section header */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {showSavedOnly
-                ? settings.language === "Kinyarwanda"
-                  ? "Inyandiko zabitswe"
-                  : "Saved documents"
-                : t("documents")}
-            </Text>
-            <Text style={styles.sectionSub}>{displayedItems.length} items</Text>
-          </View>
-
-          {/* Error */}
-          {errorMsg ? (
-            <View style={styles.errorCard}>
-              <Ionicons name="alert-circle-outline" size={18} color={theme.danger} />
-              <Text style={styles.errorText} numberOfLines={3}>
-                {errorMsg}
-              </Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={loadDocs} activeOpacity={0.9}>
-                <Text style={styles.retryText}>{t("retry")}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          {/* Loading */}
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator />
-              <Text style={styles.loadingLabel}>{loadingDocsLabel}</Text>
-            </View>
-          ) : null}
-
-          {/* Documents */}
-          <View style={{ marginTop: 10, gap: 12 }}>
-            {!loading && displayedItems.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Ionicons name="folder-open-outline" size={18} color={theme.textSub} />
-                <Text style={styles.emptyTitle}>
-                  {showSavedOnly
-                    ? settings.language === "Kinyarwanda"
-                      ? "Nta nyandiko zabitswe zirimo"
-                      : "No saved documents"
-                    : t("noDocs")}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {showSavedOnly
-                    ? settings.language === "Kinyarwanda"
-                      ? "Bika inyandiko kugira ngo zigaragare hano."
-                      : "Save documents to see them here."
-                    : t("tryAnother")}
-                </Text>
-              </View>
-            ) : (
-              displayedItems.map((d) => {
-                const tagColor = tagColorByCategory(d.category);
-                const isSaved = savedIds.includes(d._id);
-
-                return (
-                  <View key={d._id} style={styles.docCard}>
-                    <TouchableOpacity
-                      style={styles.docTop}
-                      activeOpacity={0.9}
-                      onPress={() => openReader(d)}
-                    >
-                      <View style={[styles.docIcon, { backgroundColor: `${tagColor}12` }]}>
-                        <Ionicons name={docIcon(d.docType)} size={20} color={tagColor} />
+                <View key={doc._id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardTitleWrap}>
+                      <View style={[styles.docIconWrap, { backgroundColor: `${textColor}18` }]}>
+                        <Ionicons name={docIcon(doc.docType)} size={18} color={textColor} />
                       </View>
 
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.docTitle} numberOfLines={1}>
-                          {d.title}
-                        </Text>
-
-                        <Text style={styles.docDesc} numberOfLines={1}>
-                          {(d.docType || "OTHER").toUpperCase()} •{" "}
-                          {(d.jurisdiction || "Rwanda").toUpperCase()}
+                      <View style={styles.cardTextWrap}>
+                        <Text style={styles.cardTitle} numberOfLines={2}>
+                          {doc.title}
                         </Text>
 
                         <View style={styles.metaRow}>
-                          <View style={[styles.tag, { backgroundColor: `${tagColor}18` }]}>
-                            <Text style={[styles.tagText, { color: tagColor }]}>{d.category}</Text>
+                          <View style={[styles.tag, { backgroundColor: `${textColor}14` }]}>
+                            <Text style={[styles.tagText, { color: textColor }]}>
+                              {doc.category}
+                            </Text>
                           </View>
-                          <Text style={styles.statusText}>READY</Text>
+
+                          <Text style={styles.metaDot}>•</Text>
+                          <Text style={styles.metaText}>{doc.docType}</Text>
                         </View>
                       </View>
-
-                      <Ionicons name="chevron-forward" size={18} color={theme.chevron} />
-                    </TouchableOpacity>
-
-                    <View style={styles.docActions}>
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => openReader(d)}
-                        activeOpacity={0.9}
-                      >
-                        <Ionicons name="document-text-outline" size={16} color={theme.blue} />
-                        <Text style={styles.actionText}>
-                          {settings.language === "Kinyarwanda" ? "Soma" : "Read"}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => openAskAboutDoc(d)}
-                        activeOpacity={0.9}
-                      >
-                        <Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.blue} />
-                        <Text style={styles.actionText}>
-                          {settings.language === "Kinyarwanda" ? "Baza" : "Ask"}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.actionBtn, isSaved && styles.actionBtnSaved]}
-                        onPress={() => toggleSaveDoc(d._id)}
-                        activeOpacity={0.9}
-                      >
-                        <Ionicons
-                          name={isSaved ? "bookmark" : "bookmark-outline"}
-                          size={16}
-                          color={isSaved ? "#fff" : theme.blue}
-                        />
-                        <Text style={[styles.actionText, isSaved && styles.actionTextSaved]}>
-                          {isSaved
-                            ? settings.language === "Kinyarwanda"
-                              ? "Byabitswe"
-                              : "Saved"
-                            : settings.language === "Kinyarwanda"
-                            ? "Bika"
-                            : "Save"}
-                        </Text>
-                      </TouchableOpacity>
                     </View>
-                  </View>
-                );
-              })
-            )}
-          </View>
 
-          <View style={{ height: 92 }} />
-        </ScrollView>
-
-        <BottomNav />
-      </View>
-
-      {/* Reader modal */}
-      <Modal visible={readerOpen} transparent animationType="slide" onRequestClose={closeReader}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalTopBar}>
-              <Text style={styles.modalTitle} numberOfLines={1}>
-                {readerDoc?.title ||
-                  (settings.language === "Kinyarwanda" ? "Inyandiko" : "Document")}
-              </Text>
-
-              <View style={styles.modalActions}>
-                {readerDoc?._id ? (
-                  <TouchableOpacity
-                    style={styles.modalIconBtn}
-                    onPress={() => toggleSaveDoc(readerDoc._id)}
-                    activeOpacity={0.9}
-                  >
-                    <Ionicons
-                      name={savedIds.includes(readerDoc._id) ? "bookmark" : "bookmark-outline"}
-                      size={18}
-                      color={theme.text}
-                    />
-                  </TouchableOpacity>
-                ) : null}
-
-                <TouchableOpacity style={styles.modalIconBtn} onPress={closeReader} activeOpacity={0.9}>
-                  <Ionicons name="close" size={20} color={theme.text} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {readerLoading ? (
-                <View style={styles.readerLoadingBox}>
-                  <ActivityIndicator />
-                  <Text style={styles.readerLoadingText}>
-                    {settings.language === "Kinyarwanda"
-                      ? "Birimo gufungura inyandiko…"
-                      : "Opening document…"}
-                  </Text>
-                </View>
-              ) : readerError ? (
-                <View style={styles.readerStateCard}>
-                  <Ionicons name="alert-circle-outline" size={20} color={theme.danger} />
-                  <Text style={styles.readerStateTitle}>
-                    {settings.language === "Kinyarwanda"
-                      ? "Ntibyashobotse gufungura inyandiko"
-                      : "Failed to open document"}
-                  </Text>
-                  <Text style={styles.readerStateText}>{readerError}</Text>
-                </View>
-              ) : readerDoc ? (
-                <>
-                  <View style={styles.readerMetaCard}>
-                    <Text style={styles.readerDocTitle}>{readerDoc.title}</Text>
-                    <Text style={styles.readerDocMeta}>
-                      {(readerDoc.docType || "OTHER").toUpperCase()} •{" "}
-                      {(readerDoc.category || "OTHER").toUpperCase()} •{" "}
-                      {(readerDoc.jurisdiction || "Rwanda").toUpperCase()}
-                    </Text>
-                  </View>
-
-                  {extractReadableText(readerDoc) ? (
-                    <View style={styles.readerContentCard}>
-                      <Text style={styles.readerSectionTitle}>
-                        {settings.language === "Kinyarwanda" ? "Ibirimo" : "Content"}
-                      </Text>
-                      <Text style={styles.readerContentText}>{extractReadableText(readerDoc)}</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.readerStateCard}>
-                      <Ionicons name="document-outline" size={20} color={theme.textSub} />
-                      <Text style={styles.readerStateTitle}>
-                        {settings.language === "Kinyarwanda"
-                          ? "Nta nyandiko isomeka yabonetse"
-                          : "No readable document text found"}
-                      </Text>
-                      <Text style={styles.readerStateText}>
-                        {settings.language === "Kinyarwanda"
-                          ? "Backend yawe igomba kohereza content, summary, extractedText, body, cyangwa fileUrl kugira ngo inyandiko isomwe hano."
-                          : "Your backend should return content, summary, extractedText, body, or fileUrl so the document can be read here."}
-                      </Text>
-                    </View>
-                  )}
-
-                  <View style={styles.readerBottomActions}>
                     <TouchableOpacity
-                      style={styles.readerSecondaryBtn}
-                      onPress={() =>
-                        readerDoc?._id &&
-                        router.push({
-                          pathname: "/(user)/consult",
-                          params: {
-                            documentId: readerDoc._id,
-                            category: readerDoc.category,
-                          },
-                        })
-                      }
+                      onPress={() => toggleSaveDoc(doc._id)}
+                      style={styles.saveBtn}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons
+                        name={saved ? "bookmark" : "bookmark-outline"}
+                        size={20}
+                        color={saved ? "#0F3D63" : theme.textSub}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => openReader(doc)}
                       activeOpacity={0.9}
                     >
-                      <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.blue} />
-                      <Text style={styles.readerSecondaryBtnText}>
-                        {settings.language === "Kinyarwanda" ? "Baza kuri iyi nyandiko" : "Ask about this document"}
+                      <Ionicons name="book-outline" size={16} color={theme.text} />
+                      <Text style={styles.actionText}>
+                        {settings.language === "Kinyarwanda" ? "Soma" : "Read"}
                       </Text>
                     </TouchableOpacity>
 
-                    {readerDoc?._id ? (
-                      <TouchableOpacity
-                        style={styles.readerPrimaryBtn}
-                        onPress={() => toggleSaveDoc(readerDoc._id)}
-                        activeOpacity={0.9}
-                      >
-                        <Ionicons
-                          name={savedIds.includes(readerDoc._id) ? "bookmark" : "bookmark-outline"}
-                          size={18}
-                          color="#fff"
-                        />
-                        <Text style={styles.readerPrimaryBtnText}>
-                          {savedIds.includes(readerDoc._id)
-                            ? settings.language === "Kinyarwanda"
-                              ? "Byabitswe"
-                              : "Saved"
-                            : settings.language === "Kinyarwanda"
-                            ? "Bika inyandiko"
-                            : "Save document"}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : null}
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.primaryBtn]}
+                      onPress={() => askAboutDocument(doc)}
+                      activeOpacity={0.9}
+                    >
+                      <Ionicons name="chatbubble-ellipses-outline" size={16} color="#fff" />
+                      <Text style={styles.primaryBtnText}>
+                        {settings.language === "Kinyarwanda" ? "Baza" : "Ask AI"}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
+
+      <Modal visible={readerOpen} animationType="slide" onRequestClose={closeReader}>
+        <SafeAreaView style={styles.readerScreen}>
+          <View style={styles.readerHeader}>
+            <Text style={styles.readerTitle} numberOfLines={2}>
+              {readerDoc?.title || (settings.language === "Kinyarwanda" ? "Soma inyandiko" : "Read document")}
+            </Text>
+
+            <TouchableOpacity onPress={closeReader} style={styles.iconBtn}>
+              <Ionicons name="close-outline" size={24} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+
+          {readerLoading ? (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" />
+              <Text style={styles.muted}>
+                {settings.language === "Kinyarwanda" ? "Turimo gufungura inyandiko..." : "Opening document..."}
+              </Text>
+            </View>
+          ) : readerError ? (
+            <View style={styles.center}>
+              <Ionicons name="alert-circle-outline" size={28} color="#DC2626" />
+              <Text style={styles.muted}>{readerError}</Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.readerContent} showsVerticalScrollIndicator={false}>
+              {readerDoc ? (
+                <>
+                  <View style={styles.readerMetaRow}>
+                    <View
+                      style={[
+                        styles.tag,
+                        { backgroundColor: `${tagColorByCategory(readerDoc.category)}14` },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tagText,
+                          { color: tagColorByCategory(readerDoc.category) },
+                        ]}
+                      >
+                        {readerDoc.category}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.metaDot}>•</Text>
+                    <Text style={styles.metaText}>{readerDoc.docType}</Text>
+                  </View>
+
+                  <Text style={styles.readerBody}>
+                    {extractReadableText(readerDoc) ||
+                      (settings.language === "Kinyarwanda"
+                        ? "Nta bisobanuro by'inyandiko byabonetse."
+                        : "No readable document content found.")}
+                  </Text>
                 </>
               ) : null}
             </ScrollView>
-          </View>
-        </View>
+          )}
+        </SafeAreaView>
       </Modal>
+
+      <BottomNav />
     </SafeAreaView>
   );
 }
 
-function makeStyles(theme: any, s: number) {
-  const bg = theme?.bg ?? "#ffffff";
-  const card = theme?.card ?? bg;
-  const border = theme?.border ?? "#E5E7EB";
-  const muted = theme?.muted ?? "#F3F4F6";
-  const text = theme?.text ?? "#111827";
-  const textSub = theme?.textSub ?? "#6B7280";
-  const blue = theme?.blue ?? theme?.primary ?? "#2563EB";
-  const danger = theme?.danger ?? "#DC2626";
-  const dangerBg = theme?.dangerBg ?? "#FEE2E2";
-  const chevron = theme?.chevron ?? "#9CA3AF";
+const makeStyles = (theme: any, scale: number) => {
+  const s = scale || 1;
 
   return {
-    safe: { flex: 1, backgroundColor: bg },
-    container: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10 },
+    screen: {
+      flex: 1,
+      backgroundColor: theme.bg,
+    },
 
     topBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 12,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 10,
     },
+
+    title: {
+      fontSize: 24 * s,
+      fontWeight: "800",
+      color: theme.text,
+    },
+
     iconBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: muted,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
     },
-    iconBtnActive: {
-      backgroundColor: blue,
-    },
-    title: { fontSize: 14 * s, fontWeight: "900", color: text },
-
-    segment: {
-      flexDirection: "row",
-      backgroundColor: muted,
-      borderRadius: 14,
-      padding: 4,
-      marginBottom: 12,
-    },
-    segItem: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center" },
-    segActive: { backgroundColor: card },
-    segText: { fontSize: 12 * s, fontWeight: "800", color: textSub },
-    segTextActive: { color: blue },
 
     searchWrap: {
       flexDirection: "row",
       alignItems: "center",
-      borderWidth: 1,
-      borderColor: border,
+      marginHorizontal: 16,
+      marginBottom: 12,
+      paddingHorizontal: 14,
+      height: 50,
       borderRadius: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      backgroundColor: card,
-    },
-    searchInput: { flex: 1, fontSize: 13 * s, color: text },
-
-    pillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, marginBottom: 14 },
-    pill: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: muted },
-    pillActive: { backgroundColor: blue },
-    pillText: { fontSize: 12 * s, fontWeight: "800", color: textSub },
-    pillTextActive: { color: "#ffffff" },
-
-    sectionHeader: {
-      flexDirection: "row",
-      alignItems: "baseline",
-      justifyContent: "space-between",
-      marginTop: 2,
-    },
-    sectionTitle: { fontSize: 14 * s, fontWeight: "900", color: text },
-    sectionSub: { fontSize: 11 * s, color: chevron, fontWeight: "800" },
-
-    loadingBox: {
-      marginTop: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      padding: 12,
-      borderRadius: 16,
-      backgroundColor: muted,
+      backgroundColor: theme.card,
       borderWidth: 1,
-      borderColor: border,
+      borderColor: theme.border,
     },
-    loadingLabel: { color: textSub, fontWeight: "800" },
 
-    errorCard: {
-      marginTop: 12,
+    searchInput: {
+      flex: 1,
+      marginLeft: 8,
+      color: theme.text,
+      fontSize: 14 * s,
+    },
+
+    filtersWrap: {
+      height: 58,
+      marginBottom: 6,
+    },
+
+    filterRow: {
+      paddingHorizontal: 16,
+      alignItems: "center",
+      paddingRight: 26,
+    },
+
+    filterChip: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      padding: 12,
-      borderRadius: 16,
-      backgroundColor: dangerBg,
+      justifyContent: "center",
+      height: 42,
+      paddingHorizontal: 18,
+      borderRadius: 21,
+      backgroundColor: theme.card,
       borderWidth: 1,
-      borderColor: dangerBg,
+      borderColor: theme.border,
+      marginRight: 10,
     },
-    errorText: { flex: 1, color: danger, fontWeight: "800" },
-    retryBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: danger },
-    retryText: { color: "#fff", fontWeight: "900", fontSize: 12 * s },
 
-    emptyCard: {
-      marginTop: 6,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: border,
-      backgroundColor: card,
-      padding: 14,
-      gap: 6,
-      alignItems: "center",
+    filterChipIcon: {
+      marginRight: 8,
     },
-    emptyTitle: { fontWeight: "900", color: text },
-    emptyText: { color: textSub, fontWeight: "700", textAlign: "center" },
 
-    docCard: {
-      borderWidth: 1,
-      borderColor: border,
-      borderRadius: 18,
-      padding: 14,
-      backgroundColor: card,
+    filterChipText: {
+      color: theme.text,
+      fontWeight: "700",
+      fontSize: 14 * s,
     },
-    docTop: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    docIcon: { width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-    docTitle: { fontSize: 13 * s, fontWeight: "900", color: text },
-    docDesc: { fontSize: 11.5 * s, color: textSub, marginTop: 4, lineHeight: 16 },
 
-    metaRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
-    tag: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 },
-    tagText: { fontSize: 10 * s, fontWeight: "900" },
-    statusText: { fontSize: 10.5 * s, color: chevron, fontWeight: "800" },
-
-    docActions: {
-      flexDirection: "row",
-      gap: 8,
-      marginTop: 14,
-      flexWrap: "wrap",
-    },
-    actionBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingVertical: 9,
-      paddingHorizontal: 12,
-      borderRadius: 12,
-      backgroundColor: muted,
-    },
-    actionBtnSaved: {
-      backgroundColor: blue,
-    },
-    actionText: {
-      fontSize: 11.5 * s,
-      fontWeight: "900",
-      color: blue,
-    },
-    actionTextSaved: {
+    filterChipTextActive: {
       color: "#fff",
     },
 
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.35)",
-      justifyContent: "flex-end",
-    },
-    modalSheet: {
-      height: "88%",
-      backgroundColor: bg,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingTop: 12,
-      borderWidth: 1,
-      borderColor: border,
-    },
-    modalTopBar: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 18,
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: border,
-    },
-    modalTitle: {
-      flex: 1,
-      fontSize: 15 * s,
-      fontWeight: "900",
-      color: text,
-      marginRight: 12,
-    },
-    modalActions: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    modalIconBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: muted,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    modalBody: {
-      padding: 18,
-      paddingBottom: 28,
+    listContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 120,
+      paddingTop: 6,
     },
 
-    readerLoadingBox: {
+    center: {
+      flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 32,
-      gap: 10,
+      paddingHorizontal: 24,
+      paddingVertical: 30,
     },
-    readerLoadingText: {
-      color: textSub,
+
+    muted: {
+      marginTop: 10,
+      color: theme.textSub,
+      textAlign: "center",
+      fontSize: 14 * s,
+      lineHeight: 20 * s,
+    },
+
+    card: {
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 22,
+      padding: 16,
+      marginBottom: 14,
+      shadowColor: "#000",
+      shadowOpacity: theme.bg === "#000" ? 0.12 : 0.05,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 3,
+    },
+
+    cardHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 14,
+    },
+
+    cardTitleWrap: {
+      flexDirection: "row",
+      flex: 1,
+      paddingRight: 10,
+    },
+
+    docIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 12,
+    },
+
+    cardTextWrap: {
+      flex: 1,
+    },
+
+    cardTitle: {
+      color: theme.text,
+      fontSize: 15 * s,
+      fontWeight: "800",
+      lineHeight: 22 * s,
+      marginBottom: 8,
+    },
+
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+
+    tag: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+
+    tagText: {
+      fontSize: 11 * s,
       fontWeight: "800",
     },
 
-    readerMetaCard: {
-      backgroundColor: card,
-      borderWidth: 1,
-      borderColor: border,
-      borderRadius: 18,
-      padding: 14,
-      marginBottom: 14,
-    },
-    readerDocTitle: {
-      fontSize: 16 * s,
-      fontWeight: "900",
-      color: text,
-      lineHeight: 22,
-    },
-    readerDocMeta: {
-      marginTop: 8,
-      fontSize: 11.5 * s,
-      color: textSub,
+    metaDot: {
+      marginHorizontal: 7,
+      color: theme.textSub,
       fontWeight: "700",
-      lineHeight: 16,
     },
 
-    readerContentCard: {
-      backgroundColor: card,
-      borderWidth: 1,
-      borderColor: border,
-      borderRadius: 18,
-      padding: 14,
-    },
-    readerSectionTitle: {
-      fontSize: 13 * s,
-      fontWeight: "900",
-      color: text,
-      marginBottom: 10,
-    },
-    readerContentText: {
-      fontSize: 13 * s,
-      color: text,
-      lineHeight: 22,
-      fontWeight: "500",
-    },
-
-    readerStateCard: {
-      borderWidth: 1,
-      borderColor: border,
-      borderRadius: 18,
-      backgroundColor: card,
-      padding: 16,
-      alignItems: "center",
-    },
-    readerStateTitle: {
-      marginTop: 10,
-      fontSize: 14 * s,
-      fontWeight: "900",
-      color: text,
-      textAlign: "center",
-    },
-    readerStateText: {
-      marginTop: 8,
+    metaText: {
+      color: theme.textSub,
       fontSize: 12 * s,
-      fontWeight: "700",
-      color: textSub,
-      lineHeight: 18,
-      textAlign: "center",
+      fontWeight: "600",
     },
 
-    readerBottomActions: {
-      gap: 10,
-      marginTop: 16,
-    },
-    readerSecondaryBtn: {
-      flexDirection: "row",
+    saveBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
-      gap: 8,
-      minHeight: 48,
-      borderRadius: 16,
-      backgroundColor: muted,
+      backgroundColor: theme.bg,
       borderWidth: 1,
-      borderColor: border,
-      paddingHorizontal: 12,
+      borderColor: theme.border,
     },
-    readerSecondaryBtnText: {
-      fontSize: 12.5 * s,
-      fontWeight: "900",
-      color: blue,
+
+    cardActions: {
+      flexDirection: "row",
+      gap: 10,
     },
-    readerPrimaryBtn: {
+
+    actionBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.bg,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 8,
-      minHeight: 48,
-      borderRadius: 16,
-      backgroundColor: blue,
-      paddingHorizontal: 12,
+      gap: 6,
     },
-    readerPrimaryBtnText: {
-      fontSize: 12.5 * s,
-      fontWeight: "900",
+
+    actionText: {
+      color: theme.text,
+      fontWeight: "700",
+      fontSize: 13 * s,
+    },
+
+    primaryBtn: {
+      backgroundColor: "#0F3D63",
+      borderColor: "#0F3D63",
+    },
+
+    primaryBtnText: {
       color: "#fff",
+      fontWeight: "800",
+      fontSize: 13 * s,
+    },
+
+    readerScreen: {
+      flex: 1,
+      backgroundColor: theme.bg,
+    },
+
+    readerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+
+    readerTitle: {
+      flex: 1,
+      color: theme.text,
+      fontSize: 18 * s,
+      fontWeight: "800",
+      paddingRight: 12,
+    },
+
+    readerContent: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+
+    readerMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 16,
+      flexWrap: "wrap",
+    },
+
+    readerBody: {
+      color: theme.text,
+      fontSize: 14 * s,
+      lineHeight: 24 * s,
     },
   };
-}
+};

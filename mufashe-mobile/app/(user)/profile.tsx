@@ -323,6 +323,10 @@ export default function ProfileScreen() {
     );
   }, [openExternalLink]);
 
+  const onLegalScreenPress = useCallback(() => {
+    router.push("/(user)/legal");
+  }, []);
+
   const onSignOut = useCallback(async () => {
     try {
       Alert.alert(
@@ -516,6 +520,15 @@ export default function ProfileScreen() {
             title={t("myQuestions") || "My questions"}
             subtitle={t("viewHistory") || "View consultation history"}
             onPress={() => router.push("/(user)/history")}
+            theme={theme}
+            styles={styles}
+          />
+          <Divider styles={styles} />
+          <RowNav
+            icon="document-lock-outline"
+            title="Privacy & Legal"
+            subtitle="View privacy policy, disclaimer, and user rights"
+            onPress={onLegalScreenPress}
             theme={theme}
             styles={styles}
           />

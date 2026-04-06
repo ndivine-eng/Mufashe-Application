@@ -62,7 +62,7 @@ const SUGGESTIONS = [
   "I bought a phone and later learned it was stolen. What can I do?",
   "My employer dismissed me without notice. What are my rights?",
   "Someone borrowed money and refuses to pay me back. What steps can I take?",
-  "My landlord wants me to leave immediately. Is that allowed?",
+  "What can I do if my landlord wants to evict me without notice in Rwanda?",
 ];
 
 function sectionizeAnswer(text: string) {

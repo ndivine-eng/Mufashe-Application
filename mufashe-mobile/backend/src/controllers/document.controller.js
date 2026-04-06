@@ -9,6 +9,7 @@
 // ------------------------------------------------------------
 
 const path = require("path");
+const fs = require("fs");
 
 const Document = require("../models/Document");
 const DocumentChunk = require("../models/DocumentChunk");
@@ -28,7 +29,9 @@ const ALLOWED_CATEGORIES = ["FAMILY", "LAND", "LABOR", "BUSINESS"];
 exports.createDocument = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     const { title, category, docType = "LAW", jurisdiction = "Rwanda" } = req.body || {};
     const cat = normalizeCategory(category);
@@ -56,9 +59,17 @@ exports.createDocument = async (req, res) => {
       status: "UPLOADED",
     });
 
-    return res.status(201).json({ message: "Document created", document: doc });
+    return res.status(201).json({
+      ok: true,
+      message: "Document created",
+      document: doc,
+    });
   } catch (err) {
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res.status(500).json({
+      ok: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 
@@ -75,18 +86,36 @@ exports.listDocuments = async (req, res) => {
     if (category) {
       const cat = normalizeCategory(category);
       if (!cat || !ALLOWED_CATEGORIES.includes(cat)) {
-        return res.status(400).json({ message: "Invalid category", allowed: ALLOWED_CATEGORIES });
+        return res.status(400).json({
+          message: "Invalid category",
+          allowed: ALLOWED_CATEGORIES,
+        });
       }
       filter.category = cat;
     }
 
-    if (status) filter.status = String(status).trim().toUpperCase();
-    if (q) filter.title = { $regex: String(q).trim(), $options: "i" };
+    if (status) {
+      filter.status = String(status).trim().toUpperCase();
+    }
+
+    if (q) {
+      filter.title = { $regex: String(q).trim(), $options: "i" };
+    }
 
     const docs = await Document.find(filter).sort({ createdAt: -1 });
-    return res.json({ items: docs, total: docs.length, filter });
+
+    return res.json({
+      ok: true,
+      items: docs,
+      total: docs.length,
+      filter,
+    });
   } catch (err) {
-    return res.status(500).json({ message: "Server error", error: err.message });
+    return res.status(500).json({
+      ok: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 
@@ -97,10 +126,21 @@ exports.listDocuments = async (req, res) => {
 exports.getDocumentById = async (req, res) => {
   try {
     const doc = await Document.findById(req.params.id);
-    if (!doc) return res.status(404).json({ message: "Document not found" });
-    return res.json(doc);
+
+    if (!doc) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    return res.json({
+      ok: true,
+      document: doc,
+    });
   } catch (err) {
-    return res.status(400).json({ message: "Invalid document id", error: err.message });
+    return res.status(400).json({
+      ok: false,
+      message: "Invalid document id",
+      error: err.message,
+    });
   }
 };
 
@@ -110,12 +150,15 @@ exports.getDocumentById = async (req, res) => {
 ============================================================ */
 exports.updateDocument = async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const updates = { ...(req.body || {}) };
 
     if (updates.category) {
       const cat = normalizeCategory(updates.category);
       if (!cat || !ALLOWED_CATEGORIES.includes(cat)) {
-        return res.status(400).json({ message: "Invalid category", allowed: ALLOWED_CATEGORIES });
+        return res.status(400).json({
+          message: "Invalid category",
+          allowed: ALLOWED_CATEGORIES,
+        });
       }
       updates.category = cat;
     }
@@ -128,10 +171,21 @@ exports.updateDocument = async (req, res) => {
       runValidators: true,
     });
 
-    if (!doc) return res.status(404).json({ message: "Document not found" });
-    return res.json({ message: "Document updated", document: doc });
+    if (!doc) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    return res.json({
+      ok: true,
+      message: "Document updated",
+      document: doc,
+    });
   } catch (err) {
-    return res.status(400).json({ message: "Update failed", error: err.message });
+    return res.status(400).json({
+      ok: false,
+      message: "Update failed",
+      error: err.message,
+    });
   }
 };
 
@@ -142,7 +196,9 @@ exports.updateDocument = async (req, res) => {
 exports.uploadDocumentPdf = async (req, res) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     if (!req.file) {
       return res.status(400).json({
@@ -151,11 +207,21 @@ exports.uploadDocumentPdf = async (req, res) => {
       });
     }
 
-    const { title, category, docType = "LAW", jurisdiction = "Rwanda", documentId } = req.body || {};
+    const {
+      title,
+      category,
+      docType = "LAW",
+      jurisdiction = "Rwanda",
+      documentId,
+    } = req.body || {};
+
     const cat = normalizeCategory(category);
 
     if (cat && !ALLOWED_CATEGORIES.includes(cat)) {
-      return res.status(400).json({ message: "Invalid category", allowed: ALLOWED_CATEGORIES });
+      return res.status(400).json({
+        message: "Invalid category",
+        allowed: ALLOWED_CATEGORIES,
+      });
     }
 
     // save relative path
@@ -185,10 +251,17 @@ exports.uploadDocumentPdf = async (req, res) => {
         { new: true, runValidators: true }
       );
 
-      if (!updated) return res.status(404).json({ message: "Document not found" });
+      if (!updated) {
+        return res.status(404).json({ message: "Document not found" });
+      }
 
       await DocumentChunk.deleteMany({ documentId: updated._id });
-      return res.json({ message: "PDF uploaded and document updated", document: updated });
+
+      return res.json({
+        ok: true,
+        message: "PDF uploaded and document updated",
+        document: updated,
+      });
     }
 
     // CASE B: Create new document
@@ -213,9 +286,17 @@ exports.uploadDocumentPdf = async (req, res) => {
       status: "UPLOADED",
     });
 
-    return res.status(201).json({ message: "PDF uploaded and document created", document: doc });
+    return res.status(201).json({
+      ok: true,
+      message: "PDF uploaded and document created",
+      document: doc,
+    });
   } catch (err) {
-    return res.status(400).json({ message: "Upload failed", error: err.message });
+    return res.status(400).json({
+      ok: false,
+      message: "Upload failed",
+      error: err.message,
+    });
   }
 };
 
@@ -272,10 +353,20 @@ exports.processAllDocuments = async (req, res) => {
       try {
         const r = await processOneDocument(d._id);
         processed += 1;
-        results.push({ id: String(d._id), title: d.title, ok: true, ...r });
+        results.push({
+          id: String(d._id),
+          title: d.title,
+          ok: true,
+          result: r,
+        });
       } catch (e) {
         failed += 1;
-        results.push({ id: String(d._id), title: d.title, ok: false, error: e.message });
+        results.push({
+          id: String(d._id),
+          title: d.title,
+          ok: false,
+          error: e.message,
+        });
       }
     }
 
@@ -302,13 +393,50 @@ exports.processAllDocuments = async (req, res) => {
 ============================================================ */
 exports.deleteDocument = async (req, res) => {
   try {
-    const doc = await Document.findByIdAndDelete(req.params.id);
-    if (!doc) return res.status(404).json({ message: "Document not found" });
+    const { id } = req.params;
 
-    await DocumentChunk.deleteMany({ documentId: doc._id });
+    // 1. Find selected document first
+    const doc = await Document.findById(id);
+    if (!doc) {
+      return res.status(404).json({
+        ok: false,
+        message: "Document not found",
+      });
+    }
 
-    return res.json({ ok: true, message: "Document deleted", document: doc });
+    // 2. Delete related chunks/vectors
+    const deletedChunks = await DocumentChunk.deleteMany({ documentId: doc._id });
+
+    // 3. Delete physical file if it exists
+    if (doc.fileKey) {
+      const fullPath = path.join(process.cwd(), doc.fileKey);
+
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    }
+
+    // 4. Delete main document record
+    await Document.findByIdAndDelete(doc._id);
+
+    return res.json({
+      ok: true,
+      message: "Document deleted successfully",
+      deletedDocument: {
+        _id: doc._id,
+        title: doc.title,
+        fileName: doc.fileName,
+        status: doc.status,
+      },
+      deletedChunksCount: deletedChunks.deletedCount || 0,
+    });
   } catch (err) {
-    return res.status(400).json({ message: "Invalid document id", error: err.message });
+    console.error("Delete document error:", err);
+
+    return res.status(400).json({
+      ok: false,
+      message: "Delete failed",
+      error: err.message,
+    });
   }
 };

@@ -20,21 +20,25 @@ type Key =
   | "library"
   | "today"
   | "yesterday"
+
   // Library
   | "documents"
   | "searchDocs"
   | "noDocs"
   | "tryAnother"
   | "saved"
+
   // Consult
   | "consult"
   | "send"
   | "sources"
+
   // Categories
   | "family"
   | "land"
   | "labor"
   | "business"
+
   // Profile
   | "profile"
   | "removePhoto"
@@ -46,6 +50,7 @@ type Key =
   | "myQuestions"
   | "viewHistory"
   | "signOut"
+
   // Alerts / system (Profile)
   | "notLoggedInTitle"
   | "notLoggedInMsg"
@@ -56,6 +61,7 @@ type Key =
   | "comingSoonTitle"
   | "comingSoonPersonalInfo"
   | "comingSoonSecurity"
+
   // Settings screen UI
   | "settings"
   | "loadingSettings"
@@ -88,6 +94,7 @@ type Key =
   | "resetSettings"
   | "resetSettingsSub"
   | "chooseFontSize"
+
   // Settings alerts/buttons
   | "exportReadyTitle"
   | "exportReadyMsg"
@@ -269,20 +276,20 @@ const STRINGS: Record<"English" | "Kinyarwanda", Record<Key, string>> = {
     notLoggedInTitle: "Ntabwo winjiye",
     notLoggedInMsg: "Banza winjire.",
     permissionTitle: "Uruhushya rurakenewe",
-    permissionMsg: "Emera ko app ikoresha amafoto kugira ngo ushyireho ifoto.",
+    permissionMsg: "Emera ko porogaramu ikoresha amafoto kugira ngo ushyireho ifoto.",
     uploadFailedTitle: "Byanze",
     uploadFailedMsg: "Ntibyashobotse. Ongera ugerageze.",
     comingSoonTitle: "Biraje vuba",
     comingSoonPersonalInfo: "Guhindura amakuru y'umwirondoro biraje.",
-    comingSoonSecurity: "Igenamiterere y'umutekano iraje.",
+    comingSoonSecurity: "Igenamiterere ry'umutekano riraje.",
 
     settings: "Igenamiterere",
     loadingSettings: "Birimo gutegurwa…",
-    appearance: "Isura",
-    darkMode: "Dark Mode",
-    darkModeSub: "Hindura hagati ya light na dark.",
+    appearance: "Imigaragarire",
+    darkMode: "Uburyo bw'ijoro",
+    darkModeSub: "Hindura hagati y'urumuri n'ijoro.",
     fontSize: "Ingano y'inyuguti",
-    fontSizeSub: "Hitamo ingano y'inyandiko.",
+    fontSizeSub: "Hitamo ingano y'inyandiko ukunda.",
     highContrast: "Kongera itandukaniro",
     highContrastSub: "Bifasha gusoma neza ku mabara yegereye.",
 
@@ -291,16 +298,16 @@ const STRINGS: Record<"English" | "Kinyarwanda", Record<Key, string>> = {
     appLanguageSub: "Hitamo ururimi ukunda.",
 
     notifications: "Ubutumwa",
-    pushNotifications: "Push Notifications",
+    pushNotifications: "Ubutumwa bwa porogaramu",
     pushNotificationsSub: "Bona ubutumwa n'ibibutsa.",
-    emailUpdates: "Email Updates",
-    emailUpdatesSub: "Bona amakuru kuri email.",
+    emailUpdates: "Amakuru kuri imeli",
+    emailUpdatesSub: "Bona amakuru yoherezwa kuri imeli.",
 
-    privacyData: "Ibanga & Amakuru",
+    privacyData: "Ibanga n'Amakuru",
     exportSettings: "Kuramo igenamiterere",
-    exportSettingsSub: "Kuramo kopi y'igenamiterere.",
-    clearLocalCache: "Gusiba Cache",
-    clearLocalCacheSub: "Siba ibintu byabitswe kuri telefoni.",
+    exportSettingsSub: "Kuramo kopi y'igenamiterere ryawe.",
+    clearLocalCache: "Siba cache yo muri telefoni",
+    clearLocalCacheSub: "Siba ibintu byabitswe kuri iyi telefoni.",
 
     about: "Ibyerekeye",
     terms: "Amategeko yo gukoresha",
@@ -309,49 +316,50 @@ const STRINGS: Record<"English" | "Kinyarwanda", Record<Key, string>> = {
     privacyPolicySub: "Uko turinda amakuru yawe.",
 
     advanced: "Ibindi",
-    resetSettings: "Gusubiza ku bisanzwe",
-    resetSettingsSub: "Subiza igenamiterere ku bisanzwe.",
+    resetSettings: "Subiza igenamiterere ku bisanzwe",
+    resetSettingsSub: "Subiza igenamiterere ku buryo busanzwe.",
 
     chooseFontSize: "Hitamo ingano y'inyuguti",
 
-    exportReadyTitle: "Byiteguye",
-    exportReadyMsg: "Byateguwe ({n} inyuguti).",
+    exportReadyTitle: "Byateguwe",
+    exportReadyMsg: "Igenamiterere ryateguwe ({n} inyuguti).",
     exportFailedTitle: "Byanze",
-    exportFailedMsg: "Ntibyashobotse gutegura export.",
+    exportFailedMsg: "Ntibyashobotse gutegura igenamiterere.",
 
-    clearCacheTitle: "Gusiba Cache",
-    clearCacheMsg: "Ibi bisiba cache kuri telefoni. Ukomeza?",
-    cancel: "Oya",
+    clearCacheTitle: "Siba cache",
+    clearCacheMsg: "Ibi bisiba ibintu byabitswe kuri iyi telefoni. Ukomeze?",
+    cancel: "Hagarika",
     clear: "Siba",
-    doneTitle: "Byarangiye",
+    doneTitle: "Byakozwe",
     cacheClearedMsg: "Cache yasibwe.",
     errorTitle: "Ikosa",
     clearCacheFailedMsg: "Ntibyashobotse gusiba cache.",
 
-    resetTitle: "Gusubiza ku bisanzwe",
-    resetMsg: "Usubize igenamiterere ku bisanzwe?",
+    resetTitle: "Subiza igenamiterere",
+    resetMsg: "Subiza igenamiterere ku bisanzwe?",
     reset: "Subiza",
 
-    termsSoonMsg: "Amategeko azaboneka vuba.",
-    privacySoonMsg: "Politiki y'ibanga izaboneka vuba.",
+    termsSoonMsg: "Amategeko yo gukoresha araza vuba.",
+    privacySoonMsg: "Politiki y'ibanga iraza vuba.",
   },
 };
 
 export function useT() {
   const { settings } = useAppSettings();
-  const lang = settings.language;
 
   return useCallback(
-    (key: Key, vars?: Record<string, string>) => {
-      let s = STRINGS[lang]?.[key] ?? STRINGS.English[key] ?? key;
+    (key: Key, vars?: Record<string, string | number>) => {
+      const lang = settings.language ?? "English";
+      let text = STRINGS[lang][key] ?? STRINGS.English[key] ?? key;
 
       if (vars) {
-        for (const k of Object.keys(vars)) {
-          s = s.replace(new RegExp(`\\{${k}\\}`, "g"), vars[k]);
-        }
+        Object.entries(vars).forEach(([k, v]) => {
+          text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+        });
       }
-      return s;
+
+      return text;
     },
-    [lang]
+    [settings.language]
   );
 }

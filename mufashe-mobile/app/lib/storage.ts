@@ -1,3 +1,5 @@
+// app/lib/storage.ts
+// this file contains the logic to persist the auth token and user in AsyncStorage. It also contains the logic to clear the auth data when the user logs out. The auth data includes the token and the user object.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AuthUser } from "./auth";
 

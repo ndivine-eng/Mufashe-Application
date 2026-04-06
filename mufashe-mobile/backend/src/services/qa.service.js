@@ -1,3 +1,6 @@
+// src/services/qa.service.js
+// This service implements the core logic for answering legal questions. It retrieves relevant document chunks based on the user's question, constructs a prompt for the language model, generates an answer, and returns the answer along with performance metrics and sources used.
+
 const axios = require("axios");
 const mongoose = require("mongoose");
 
@@ -177,6 +180,8 @@ async function answerQuestion({ userId, question, topK = 4, category, documentId
     throw new Error("Question is required");
   }
 
+  const retrievalStart = Date.now();
+
   const { docs, chunks } = await retrieveChunksSecure({
     userId,
     question: q,
@@ -185,11 +190,17 @@ async function answerQuestion({ userId, question, topK = 4, category, documentId
     documentId,
   });
 
+  const retrievalEnd = Date.now();
+  const retrievalTimeMs = retrievalEnd - retrievalStart;
+
   if (!chunks.length) {
     return {
       answer:
         "Summary:\nI could not find enough relevant legal information in the available READY documents.\n\nWhat this may mean for you:\n- The correct document may not be uploaded yet.\n- The uploaded document may not be processed or marked as READY.\n- Your question may need a more specific legal source.\n\nWhat you can do next:\n- Try asking in a more specific way.\n- Upload or process the correct legal document.\n- Choose the correct category or document before asking again.\n\nWhat to prepare:\n- The relevant contract, receipt, ID, agreement, or complaint details if they relate to your question.\n\nUrgent note:\nNo urgent warning from the available sources.\n\nSources used:\n- No matching source found.\n\nThis is legal information, not a lawyer-client relationship.",
       sources: [],
+      retrievalTimeMs,
+      generationTimeMs: 0,
+      topScore: 0,
     };
   }
 
@@ -198,7 +209,11 @@ async function answerQuestion({ userId, question, topK = 4, category, documentId
   const contextText = buildContext(uniqueChunks, docMap);
 
   const prompt = buildPrompt(q, contextText);
+
+  const generationStart = Date.now();
   const answer = await ollamaGenerate(prompt);
+  const generationEnd = Date.now();
+  const generationTimeMs = generationEnd - generationStart;
 
   const sources = uniqueChunks.map((c, i) => ({
     n: i + 1,
@@ -210,11 +225,19 @@ async function answerQuestion({ userId, question, topK = 4, category, documentId
     snippet: shortText(c.chunkText, 220),
   }));
 
+  const topScore =
+    uniqueChunks.length > 0 && uniqueChunks[0]?.score != null
+      ? Number(uniqueChunks[0].score)
+      : 0;
+
   return {
     answer:
       answer ||
       "Summary:\nI could not generate a grounded answer from the available legal sources.\n\nWhat this may mean for you:\n- The system found sources, but they were not enough for a reliable explanation.\n\nWhat you can do next:\n- Rephrase your question more clearly.\n- Open a specific legal document and ask again.\n\nWhat to prepare:\n- Any document connected to your case.\n\nUrgent note:\nNo urgent warning from the available sources.\n\nSources used:\n- See listed sources.\n\nThis is legal information, not a lawyer-client relationship.",
     sources,
+    retrievalTimeMs,
+    generationTimeMs,
+    topScore,
   };
 }
 

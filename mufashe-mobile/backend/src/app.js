@@ -9,11 +9,12 @@ const usersRoutes = require("./routes/users.routes");
 const qaRoutes = require("./routes/qa.routes");
 const questionsRoutes = require("./routes/questions.routes");
 
-// ✅ NEW routes (make sure these files exist)
+//  NEW routes (make sure these files exist)
 const lawyersRoutes = require("./routes/lawyers.routes");
 const appointmentsRoutes = require("./routes/appointments.routes");
 const notificationsRoutes = require("./routes/notifications.routes");
 const adminRoutes = require("./routes/admin.routes");
+const benchmarkRoutes = require("./routes/benchmark.routes");
 
 const app = express();
 
@@ -24,7 +25,6 @@ app.use(express.json());
 app.get("/", (req, res) => res.send("Mufashe API running ✅"));
 app.get("/api/ping", (req, res) => res.json({ ok: true, msg: "app is running" }));
 
-// Existing routes
 app.use("/api/auth", authRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/search", searchRoutes);
@@ -32,10 +32,11 @@ app.use("/api/users", usersRoutes);
 app.use("/api/qa", qaRoutes);
 app.use("/api/questions", questionsRoutes);
 
-// New feature routes
 app.use("/api/lawyers", lawyersRoutes);
 app.use("/api/appointments", appointmentsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/admin", adminRoutes);
+
+app.use("/api/benchmarks", benchmarkRoutes);
 
 module.exports = app;

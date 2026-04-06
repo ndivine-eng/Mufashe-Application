@@ -1,3 +1,5 @@
+//app/lib/appSettings.tsx
+// this file contains the app settings context and provider. It also contains the logic to persist the settings in AsyncStorage. The settings include theme mode, font size, language, and some other preferences. The theme is generated based on the theme mode and high contrast setting. The font scale is generated based on the font size setting.
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
